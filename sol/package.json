@@ -1,0 +1,22 @@
+{
+  "name": "sol-test",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/client/main.ts",
+    "build:program": "cargo build-bpf --manifest-path=src/program/Cargo.toml",
+    "test:program": "cargo test-bpf --manifest-path=src/program/Cargo.toml",
+    "deploy:program": "solana program deploy src/program/target/deploy/program.so",
+    "clean:program": "cargo clean --manifest-path=src/program/Cargo.toml"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.93.2",
+    "mz": "^2.7.0"
+  }
+}
