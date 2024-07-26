@@ -4,13 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ahash = "=0.8.6"
-ark-bn254 = "0.4.0"
-ark-ec = "0.4.2"
-ark-ff = "0.4.2"
-ark-serialize = "0.4.2"
-groth16-solana = "0.0.3"
 solana-program = "=1.17.14"
+risc0-solana = { path = "../risc0-solana"}
 
 [dev-dependencies]
 ark-std = "0.4.0"

@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "src/client/proof-pre-processer", "src/risc0-solana",
+    "src/program",
+]
+workspace.resolver = "2"

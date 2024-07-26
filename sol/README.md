@@ -2,7 +2,7 @@
 
 There are a few directories to keep in mind.
 
-### `src/client`
+### `client`
 
 1. `client` this is the TS client to interact with the RPC network using solana's JS sdk. The client also includes a few extra scripts for quality of life.
 
@@ -21,7 +21,7 @@ bun run start
 ```
 
 
-### `src/program`
+### `program`
 
 2. `program` is the Solana contract. It the program that is deployed on chain once it is built. I recommend using the node scripts to build, deploy, etc.
 
@@ -37,21 +37,20 @@ to deploy:
 solana program deploy target/deploy/<PROGRAM>.so
 ```
 
-### `src/sol-r0`
+### `risc0-solana`
 
-3. `sol-r0` is the zkVM program and host code. It currently is the default guest program, and the host is using the `bonsai-sdk` to generate the snark proofs. The proof is written to a `receipt.json` file when the host is ran.
+3. `risc0-solana` is a solana groth16 verification library, using solana's `altbn_128` syscalls. It supports a wide-array of functionality for solana proof verification with RISC Zero. Look at the readme for more info. 
 
 ```
-cargo run
+cargo test
 ```
 
-### `test-groth16-lib`
+### `test-r0-vm`
 
-4. This is to test and toy-around with Light Protocols [`groth16-solana`](https://github.com/Lightprotocol/groth16-solana/tree/master) crate.
-
+4. `test-r0-vm` is to create proofs, and hacked together verification keys and public inputs to be fed into the prepocessor, so we can export the proof, verification key, and public inputs as JSON. Its a hack. 
 ---
 
-## Setup Instructions:
+## Solana Setup Instructions:
 
 Download solana CLI:
 ```

@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/client/main.ts",
-    "build:program": "cargo build-bpf --manifest-path=src/program/Cargo.toml",
-    "test:program": "cargo test-bpf --manifest-path=src/program/Cargo.toml",
-    "deploy:program": "solana program deploy src/program/target/deploy/program.so",
+    "build:program": "cargo build-sbf --manifest-path=src/program/Cargo.toml",
+    "test:program": "cargo test-sbf --manifest-path=src/program/Cargo.toml",
+    "deploy:program": "solana program deploy target/deploy/program.so",
     "clean:program": "cargo clean --manifest-path=src/program/Cargo.toml"
   },
   "devDependencies": {
