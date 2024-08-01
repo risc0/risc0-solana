@@ -1,0 +1,23 @@
+{
+  "name": "sol-test",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/client/main.ts",
+    "build:program": "cargo build-sbf",
+    "test:program": "cargo test-sbf",
+    "deploy:program": "solana program deploy target/deploy/program.so",
+    "clean:program": "cargo clean"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.2",
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.93.2",
+    "mz": "^2.7.0"
+  }
+}
