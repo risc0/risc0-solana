@@ -16,18 +16,3 @@ let vk: VerificationKey = // ... load or deserialize verification key
 let mut verifier: Verifier<N> = Verifier::new(&proof, &public_inputs, &vk);
 let is_valid = verifier.verify().expect("Failed to verify proof");
 ```
-
-## Testing
-
-The repository includes tests. Run the tests using:
-
-```
-cargo test -p <PACKAGE>
-```
-
-## Dependencies
-
-- `solana_program`: For Solana program compatibility
-- `serde`: For JSON serialization/deserialization
-- `ark_bn254`: For BN254 curve operations
-- `num_bigint`: For big integer arithmetic
