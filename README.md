@@ -1,4 +1,4 @@
-# RISC Zero Solana Groth16 Verifier=
+# RISC Zero Solana Groth16 Verifier
 
 > **This is unaudited and not for production.**
 
