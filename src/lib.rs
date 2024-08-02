@@ -5,6 +5,7 @@ use solana_program::alt_bn128::compression::prelude::{
 use solana_program::alt_bn128::prelude::{
     alt_bn128_addition, alt_bn128_multiplication, alt_bn128_pairing,
 };
+use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
 
 #[cfg(not(target_os = "solana"))]
@@ -13,21 +14,17 @@ use {
     ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate},
     num_bigint::BigUint,
     serde::{Deserialize, Deserializer, Serialize},
+    solana_program::alt_bn128::compression::prelude::convert_endianness,
     std::{convert::TryInto, fs::File, io::Write},
 };
-
-#[cfg(not(target_os = "solana"))]
-use solana_program::alt_bn128::compression::prelude::convert_endianness;
 
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
 
-#[derive(PartialEq, Eq, Debug)]
 pub struct Verifier<'a, const N_PUBLIC: usize> {
-    pub proof: &'a Proof,
-    pub public: &'a PublicInputs<N_PUBLIC>,
-    pub prepared_public: [u8; 64],
-    pub vk: &'a VerificationKey<'a>,
+    proof: &'a Proof,
+    public: &'a PublicInputs<N_PUBLIC>,
+    vk: &'a VerificationKey<'a>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +47,125 @@ pub struct VerificationKey<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
+}
+
+pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], ProgramError> {
+    alt_bn128_g1_decompress(g1_bytes).map_err(|_| ProgramError::InvalidArgument)
+}
+
+pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], ProgramError> {
+    alt_bn128_g2_decompress(g2_bytes).map_err(|_| ProgramError::InvalidArgument)
+}
+
+impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
+    pub fn new(
+        proof: &'a Proof,
+        public: &'a PublicInputs<N_PUBLIC>,
+        vk: &'a VerificationKey<'a>,
+    ) -> Self {
+        Self { proof, public, vk }
+    }
+
+    pub fn verify(&self) -> ProgramResult {
+        let prepared_public = self.prepare_public_inputs()?;
+        self.perform_pairing(&prepared_public)
+    }
+
+    fn prepare_public_inputs(&self) -> Result<[u8; 64], ProgramError> {
+        let mut prepared = self.vk.vk_ic[0];
+        for (i, input) in self.public.inputs.iter().enumerate() {
+            let mul_res =
+                alt_bn128_multiplication(&[&self.vk.vk_ic[i + 1][..], &input[..]].concat())
+                    .unwrap();
+            prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
+                .unwrap()
+                .try_into()
+                .map_err(|_| ProgramError::InvalidArgument)?;
+        }
+        Ok(prepared)
+    }
+
+    fn perform_pairing(&self, prepared_public: &[u8; 64]) -> ProgramResult {
+        let pairing_input = [
+            self.proof.pi_a.as_slice(),
+            self.proof.pi_b.as_slice(),
+            prepared_public.as_slice(),
+            self.vk.vk_gamma_g2.as_slice(),
+            self.proof.pi_c.as_slice(),
+            self.vk.vk_delta_g2.as_slice(),
+            self.vk.vk_alpha_g1.as_slice(),
+            self.vk.vk_beta_g2.as_slice(),
+        ]
+        .concat();
+
+        let pairing_res = alt_bn128_pairing(&pairing_input).unwrap();
+
+        if pairing_res[31] != 1 {
+            return Err(ProgramError::Custom(2));
+        }
+
+        Ok(())
+    }
+}
+
+fn digest_from_hex(hex_str: &str) -> Digest {
+    let bytes = hex::decode(hex_str).expect("Invalid hex string");
+    Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
+}
+
+pub fn public_inputs<const N: usize>(
+    claim_digest: Digest,
+) -> Result<PublicInputs<N>, ProgramError> {
+    let allowed_control_root: Digest =
+        digest_from_hex("a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e");
+    let bn254_identity_control_id: Digest =
+        digest_from_hex("51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e");
+
+    let (a0, a1) =
+        split_digest_bytes(allowed_control_root).map_err(|_| ProgramError::InvalidAccountData)?;
+    let (c0, c1) =
+        split_digest_bytes(claim_digest).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    let mut id_bn554 = bn254_identity_control_id.as_bytes().to_vec();
+    id_bn554.reverse();
+    let id_bn254_fr =
+        from_u256_hex(&hex::encode(id_bn554)).map_err(|_| ProgramError::InvalidAccountData)?;
+
+    let input_vec = [a0, a1, c0, c1, id_bn254_fr];
+
+    if N != input_vec.len() {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    let mut inputs = [[0u8; 32]; N];
+    for (i, input) in input_vec.into_iter().enumerate() {
+        inputs[i] = input.try_into().unwrap();
+    }
+    Ok(PublicInputs { inputs })
+}
+
+fn split_digest_bytes(d: Digest) -> Result<(Vec<u8>, Vec<u8>), anyhow::Error> {
+    let big_endian: Vec<u8> = d.as_bytes().to_vec().iter().rev().cloned().collect();
+    let middle = big_endian.len() / 2;
+    let (b, a) = big_endian.split_at(middle);
+    Ok((
+        from_u256_hex(&hex::encode(a))?,
+        from_u256_hex(&hex::encode(b))?,
+    ))
+}
+
+fn from_u256_hex(value: &str) -> Result<Vec<u8>, anyhow::Error> {
+    Ok(to_fixed_array(
+        hex::decode(value).map_err(|_| anyhow::anyhow!("conversion from u256 failed"))?,
+    )
+    .to_vec())
+}
+
+fn to_fixed_array(input: Vec<u8>) -> [u8; 32] {
+    let mut fixed_array = [0u8; 32];
+    let start = core::cmp::max(32, input.len()) - core::cmp::min(32, input.len());
+    fixed_array[start..].copy_from_slice(&input[input.len().saturating_sub(32)..]);
+    fixed_array
 }
 
 #[cfg(not(target_os = "solana"))]
@@ -186,7 +302,7 @@ pub mod non_solana {
                 vk_beta_2: export_g2(&self.vk_beta_g2),
                 vk_gamma_2: export_g2(&self.vk_gamma_g2),
                 vk_delta_2: export_g2(&self.vk_delta_g2),
-                vk_ic: self.vk_ic.iter().map(|ic| export_g1(ic)).collect(),
+                vk_ic: self.vk_ic.iter().map(export_g1).collect(),
             })
         }
     }
@@ -336,8 +452,6 @@ pub mod non_solana {
         let g1 = G1::deserialize_with_mode(g1.as_slice(), Compress::No, Validate::Yes).unwrap();
         G1::serialize_with_mode(&g1, &mut compressed[..], Compress::Yes).unwrap();
         convert_endianness::<32, 32>(&compressed)
-            .try_into()
-            .unwrap()
     }
 
     pub fn compress_g2_be(g2: &[u8; 128]) -> [u8; 64] {
@@ -346,9 +460,8 @@ pub mod non_solana {
         let g2 = G2::deserialize_with_mode(g2.as_slice(), Compress::No, Validate::Yes).unwrap();
         G2::serialize_with_mode(&g2, &mut compressed[..], Compress::Yes).unwrap();
         convert_endianness::<64, 64>(&compressed)
-            .try_into()
-            .unwrap()
     }
+
     pub fn negate_g1(point: &[u8; 64]) -> Result<[u8; 64], Error> {
         let x = &point[..32];
         let y = &point[32..];
@@ -374,147 +487,8 @@ pub mod non_solana {
     }
 }
 
-pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], ProgramError> {
-    alt_bn128_g1_decompress(g1_bytes).map_err(|_| ProgramError::InvalidArgument)
-}
-
-pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], ProgramError> {
-    alt_bn128_g2_decompress(g2_bytes).map_err(|_| ProgramError::InvalidArgument)
-}
-
-impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
-    pub fn new(
-        proof: &'a Proof,
-        public: &'a PublicInputs<N_PUBLIC>,
-        vk: &'a VerificationKey<'a>,
-    ) -> Self {
-        Self {
-            proof,
-            prepared_public: [0u8; 64],
-            public,
-            vk,
-        }
-    }
-
-    pub fn prepare(&mut self) {
-        let mut prepped = self.vk.vk_ic[0];
-
-        for (i, input) in self.public.inputs.iter().enumerate() {
-            let mul_res =
-                alt_bn128_multiplication(&[&self.vk.vk_ic[i + 1][..], &input[..]].concat())
-                    .unwrap();
-            prepped = alt_bn128_addition(&[&mul_res[..], &prepped[..]].concat())
-                .unwrap()
-                .try_into()
-                .unwrap();
-        }
-
-        self.prepared_public = prepped;
-    }
-
-    pub fn verify(&mut self) -> Result<bool, ProgramError> {
-        self.prepare();
-
-        let pairing_input = [
-            self.proof.pi_a.as_slice(),
-            self.proof.pi_b.as_slice(),
-            self.prepared_public.as_slice(),
-            self.vk.vk_gamma_g2.as_slice(),
-            self.proof.pi_c.as_slice(),
-            self.vk.vk_delta_g2.as_slice(),
-            self.vk.vk_alpha_g1.as_slice(),
-            self.vk.vk_beta_g2.as_slice(),
-        ]
-        .concat();
-
-        let pairing_res = alt_bn128_pairing(&pairing_input).map_err(|_| ProgramError::Custom(1))?;
-
-        if pairing_res[31] != 1 {
-            return Err(ProgramError::Custom(2));
-        }
-
-        Ok(true)
-    }
-}
-
-#[macro_export]
-macro_rules! digest {
-    ($s:literal) => {{
-        const BYTES: [u8; risc0_zkp::core::digest::DIGEST_BYTES] =
-            risc0_zkp::core::digest::hex!($s);
-        risc0_zkp::core::digest::Digest::from_bytes(BYTES)
-    }};
-}
-
-pub fn groth16_public_inputs_as_bytes<const N: usize>(
-    claim_digest: Digest,
-) -> Result<PublicInputs<N>, ProgramError> {
-    const ALLOWED_CONTROL_ROOT: Digest =
-        digest!("a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e");
-    const BN254_IDENTITY_CONTROL_ID: Digest =
-        digest!("51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e");
-
-    let control_root = ALLOWED_CONTROL_ROOT;
-    let bn254_control_id = BN254_IDENTITY_CONTROL_ID;
-
-    // Split the digests into components
-    let (a0, a1) =
-        split_digest_bytes(control_root).map_err(|_| ProgramError::InvalidAccountData)?;
-    let (c0, c1) =
-        split_digest_bytes(claim_digest).map_err(|_| ProgramError::InvalidAccountData)?;
-
-    // Reverse and convert the control ID
-    let mut id_bn554 = bn254_control_id.as_bytes().to_vec();
-    id_bn554.reverse();
-    let id_bn254_fr =
-        from_u256_hex(&hex::encode(id_bn554)).map_err(|_| ProgramError::InvalidAccountData)?;
-
-    // Collect all public inputs
-    let input_vec = vec![a0, a1, c0, c1, id_bn254_fr];
-
-    // Ensure that N matches the number of inputs
-    if N != input_vec.len() {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    // Manually construct the fixed-size array
-    let mut inputs = [[0u8; 32]; N];
-    for (i, input) in input_vec.into_iter().enumerate() {
-        inputs[i] = input.try_into().unwrap();
-    }
-
-    Ok(PublicInputs { inputs })
-}
-
-// Reuse the existing split_digest_bytes function
-pub fn split_digest_bytes(d: Digest) -> Result<(Vec<u8>, Vec<u8>), anyhow::Error> {
-    let big_endian: Vec<u8> = d.as_bytes().to_vec().iter().rev().cloned().collect();
-    let middle = big_endian.len() / 2;
-    let (b, a) = big_endian.split_at(middle);
-    Ok((
-        from_u256_hex(&hex::encode(a))?,
-        from_u256_hex(&hex::encode(b))?,
-    ))
-}
-
-// Reuse the existing from_u256_hex function
-pub fn from_u256_hex(value: &str) -> Result<Vec<u8>, anyhow::Error> {
-    Ok(to_fixed_array(
-        hex::decode(value).map_err(|_| anyhow::anyhow!("conversion from u256 failed"))?,
-    )
-    .to_vec())
-}
-
-// Reuse the existing to_fixed_array function
-fn to_fixed_array(input: Vec<u8>) -> [u8; 32] {
-    let mut fixed_array = [0u8; 32];
-    let start = core::cmp::max(32, input.len()) - core::cmp::min(32, input.len());
-    fixed_array[start..].copy_from_slice(&input[input.len().saturating_sub(32)..]);
-    fixed_array
-}
-
 #[cfg(test)]
-mod tests {
+mod test_lib {
     use super::non_solana::*;
     use super::*;
 
@@ -588,7 +562,7 @@ mod tests {
         let vk_json_str = include_str!("../test/data/r0_test_vk.json");
         let vk: VerificationKey = serde_json::from_str(&vk_json_str).unwrap();
 
-        let mut verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
+        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
 
         verifier.verify().unwrap();
     }
@@ -611,6 +585,6 @@ mod tests {
         ]
         .concat();
 
-        write_compressed_proof_to_file("../compressed_proof.bin", &proof);
+        write_compressed_proof_to_file("test/data/compressed_proof.bin", &proof);
     }
 }
