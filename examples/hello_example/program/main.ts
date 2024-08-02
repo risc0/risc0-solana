@@ -13,11 +13,11 @@ import path from "path";
 // Constants
 const PROGRAM_KEYPAIR_PATH = path.resolve(
   __dirname,
-  "../../target/deploy/program-keypair.json"
+  "../../../target/deploy/program-keypair.json"
 );
 const CONNECTION_URL = "http://127.0.0.1:8899";
 const COMPUTE_UNITS = 1400000;
-const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../compressed_proof.bin");
+const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../../../test/data/compressed_proof.bin");
 console.log(COMPRESSED_PROOF_PATH);
 
 async function main() {

@@ -1,7 +1,7 @@
 use risc0_solana::{decompress_g1, decompress_g2, Proof, PublicInputs, VerificationKey, Verifier};
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, program_error::ProgramError,
-    pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
+    program_error::ProgramError, pubkey::Pubkey,
 };
 
 use std::convert::TryInto;
@@ -23,9 +23,9 @@ pub fn process_instruction(
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let proof_a = decompress_g1(&compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
-    let proof_b = decompress_g2(&compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
-    let proof_c = decompress_g1(&compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
+    let proof_a = decompress_g1(compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
+    let proof_b = decompress_g2(compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
+    let proof_c = decompress_g1(compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
 
     let proof: Proof = Proof {
         pi_a: proof_a,
@@ -38,16 +38,21 @@ pub fn process_instruction(
     };
 
     let vk = VerificationKey {
-        nr_pubinputs: VERIFYING_KEY.nr_pubinputs as u32,
+        nr_pubinputs: VERIFYING_KEY.nr_pubinputs,
         vk_alpha_g1: VERIFYING_KEY.vk_alpha_g1,
         vk_beta_g2: VERIFYING_KEY.vk_beta_g2,
         vk_gamma_g2: VERIFYING_KEY.vk_gamma_g2,
         vk_delta_g2: VERIFYING_KEY.vk_delta_g2,
         vk_ic: VERIFYING_KEY.vk_ic,
     };
+    let verifier = Verifier::new(&proof, &public, &vk);
 
-    let mut v = Verifier::new(&proof, &public, &vk);
-    v.verify().unwrap();
+    verifier.verify().map_err(|e| {
+        msg!("Proof verification failed: {:?}", e);
+        ProgramError::Custom(1) // Or a more specific error
+    })?;
+
+    msg!("Proof successfully verified.");
 
     Ok(())
 }
@@ -155,9 +160,7 @@ mod tests {
 
     use super::*;
     use risc0_solana::non_solana::{compress_g1_be, compress_g2_be, negate_g1};
-    use risc0_solana::{
-        groth16_public_inputs_as_bytes, Proof, PublicInputs, VerificationKey, Verifier,
-    };
+    use risc0_solana::{public_inputs, Proof, PublicInputs, VerificationKey, Verifier};
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
     use solana_program::pubkey::Pubkey;
@@ -214,9 +217,7 @@ mod tests {
             vk_ic: VERIFYING_KEY.vk_ic,
         };
 
-        // assert_eq!(proof.pi_a, proof_a);
-
-        let mut verifier: Verifier<5> = Verifier::new(&proof, &public, &vk);
+        let verifier: Verifier<5> = Verifier::new(&proof, &public, &vk);
         verifier.verify().unwrap();
     }
 
@@ -261,7 +262,7 @@ mod tests {
 
         assert_eq!(proof.pi_a, proof_a);
 
-        let mut verifier: Verifier<5> = Verifier::new(&proof, &public, &vk);
+        let verifier: Verifier<5> = Verifier::new(&proof, &public, &vk);
         verifier.verify().unwrap();
     }
 
@@ -273,7 +274,7 @@ mod tests {
 
         let claim_digest = receipt.inner.groth16().unwrap().claim.digest();
 
-        let public_inputs = groth16_public_inputs_as_bytes::<5>(claim_digest).unwrap();
+        let public_inputs = public_inputs::<5>(claim_digest).unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         println!("{:?}", proof_raw);
@@ -294,7 +295,7 @@ mod tests {
             vk_delta_g2: VERIFYING_KEY.vk_delta_g2,
             vk_ic: VERIFYING_KEY.vk_ic,
         };
-        let mut verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
+        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
 
         verifier.verify().unwrap();
     }
