@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 solana-program = "=1.18.20"
 risc0-solana = { path = "../../.." }
-risc0-zkvm = { version = "1.0.5", default-features = false }
 serde = "1.0.195"
 serde_json = "1.0.111"
 
@@ -15,6 +14,7 @@ ark-std = "0.4.0"
 array-bytes = "6.2.2"
 serde = "1.0.195"
 serde_json = "1.0.111"
+risc0-zkvm = { version = "1.0.5", default-features = false }
 
 [lib]
 crate-type = ["cdylib", "lib"]
