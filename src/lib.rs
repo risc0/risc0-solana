@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use risc0_zkp::core::digest::Digest;
 use solana_program::alt_bn128::compression::prelude::{
     alt_bn128_g1_decompress, alt_bn128_g2_decompress,
@@ -8,16 +8,6 @@ use solana_program::alt_bn128::prelude::{
 };
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
-
-#[cfg(not(target_os = "solana"))]
-use {
-    anyhow::{anyhow, Error, Result},
-    ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate},
-    num_bigint::BigUint,
-    serde::{Deserialize, Deserializer, Serialize},
-    solana_program::alt_bn128::compression::prelude::convert_endianness,
-    std::{convert::TryInto, fs::File, io::Write},
-};
 
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
@@ -171,7 +161,19 @@ fn to_fixed_array(input: Vec<u8>) -> [u8; 32] {
 
 #[cfg(not(target_os = "solana"))]
 pub mod non_solana {
+
     use super::*;
+    use {
+        anyhow::{anyhow, Error, Result},
+        ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate},
+        num_bigint::BigUint,
+        serde::{Deserialize, Deserializer, Serialize},
+        solana_program::alt_bn128::compression::prelude::convert_endianness,
+        std::{convert::TryInto, fs::File, io::Write},
+    };
+
+    type G1 = ark_bn254::g1::G1Affine;
+    type G2 = ark_bn254::g2::G2Affine;
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct ProofJson {
@@ -444,9 +446,6 @@ pub mod non_solana {
         let mut file = File::create(filename).expect("Failed to create file");
         file.write_all(proof).expect("Failed to write proof");
     }
-
-    type G1 = ark_bn254::g1::G1Affine;
-    type G2 = ark_bn254::g2::G2Affine;
 
     pub fn compress_g1_be(g1: &[u8; 64]) -> [u8; 32] {
         let g1 = convert_endianness::<32, 64>(g1);
