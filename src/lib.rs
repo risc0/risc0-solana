@@ -1,3 +1,4 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use solana_program::alt_bn128::compression::prelude::{
     alt_bn128_g1_decompress, alt_bn128_g2_decompress,
@@ -34,7 +35,7 @@ pub struct Proof {
     pub pi_c: [u8; 64],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
 pub struct VerificationKey<'a> {
     pub nr_pubinputs: u32,
     pub vk_alpha_g1: [u8; G1_LEN],
@@ -210,7 +211,8 @@ pub mod non_solana {
         where
             D: Deserializer<'de>,
         {
-            let inputs: Vec<String> = Vec::deserialize(deserializer)?;
+            let inputs: Vec<String> =
+                <Vec<String> as serde::Deserialize>::deserialize(deserializer)?;
             PublicInputs::try_from(inputs).map_err(serde::de::Error::custom)
         }
     }
@@ -235,7 +237,7 @@ pub mod non_solana {
                 .iter()
                 .map(|input| BigUint::from_bytes_be(input).to_string())
                 .collect();
-            strings.serialize(serializer)
+            serde::Serialize::serialize(&strings, serializer)
         }
     }
 

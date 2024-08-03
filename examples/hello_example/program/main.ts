@@ -6,11 +6,13 @@ import {
   Transaction,
   sendAndConfirmTransaction,
   ComputeBudgetProgram,
+  SystemProgram,
+  PublicKey,
 } from "@solana/web3.js";
 import fs from "mz/fs";
 import path from "path";
+import { variant, serialize, } from "@dao-xyz/borsh";
 
-// Constants
 const PROGRAM_KEYPAIR_PATH = path.resolve(
   __dirname,
   "../../../target/deploy/program-keypair.json"
@@ -18,61 +20,113 @@ const PROGRAM_KEYPAIR_PATH = path.resolve(
 const CONNECTION_URL = "http://127.0.0.1:8899";
 const COMPUTE_UNITS = 1400000;
 const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../../../test/data/compressed_proof.bin");
-console.log(COMPRESSED_PROOF_PATH);
 
-async function main() {
-  console.log("Launching client...");
+@variant(0)
+class InitializeVerifyingKey {
+  constructor() {}
+}
 
-  const connection = new Connection(CONNECTION_URL, "confirmed");
+@variant(1)
+class VerifyProof {
+  constructor() {}
+}
 
-  // Load program keypair
-  const secretKeyString = await fs.readFile(PROGRAM_KEYPAIR_PATH, {
-    encoding: "utf8",
-  });
+type InstructionType = InitializeVerifyingKey | VerifyProof;
+
+function serializeInstruction(instruction: InstructionType): Buffer {
+  return Buffer.from(serialize(instruction));
+}
+
+async function initConnection(): Promise<Connection> {
+  return new Connection(CONNECTION_URL, "confirmed");
+}
+
+async function loadProgramId(): Promise<PublicKey> {
+  const secretKeyString = await fs.readFile(PROGRAM_KEYPAIR_PATH, { encoding: "utf8" });
   const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
   const programKeypair = Keypair.fromSecretKey(secretKey);
-  const programId = programKeypair.publicKey;
+  return programKeypair.publicKey;
+}
 
-  // Generate a new keypair for the transaction
-  const triggerKeypair = Keypair.generate();
+async function createPayerAccount(connection: Connection): Promise<Keypair> {
+  const payerKeypair = Keypair.generate();
   const airdropRequest = await connection.requestAirdrop(
-    triggerKeypair.publicKey,
+    payerKeypair.publicKey,
     LAMPORTS_PER_SOL
   );
   await connection.confirmTransaction(airdropRequest);
+  return payerKeypair;
+}
 
-  console.log("--Pinging Program ", programId.toBase58());
-
-  // Read the compressed proof from the file
-  const proof = await fs.readFile(COMPRESSED_PROOF_PATH);
-
-  console.log(`Compressed proof length: ${proof.length}`);
-
-  // Create a transaction instruction
-  const instruction = new TransactionInstruction({
-    keys: [
-      { pubkey: triggerKeypair.publicKey, isSigner: true, isWritable: true },
-    ],
-    programId,
-    data: proof,
+async function initializeVerifyingKey(
+  connection: Connection,
+  payer: Keypair,
+  programId: PublicKey
+): Promise<Keypair> {
+  const vkAccountKeypair = Keypair.generate();
+  const createAccountInstruction = SystemProgram.createAccount({
+    fromPubkey: payer.publicKey,
+    newAccountPubkey: vkAccountKeypair.publicKey,
+    lamports: await connection.getMinimumBalanceForRentExemption(1024),
+    space: 840,
+    programId: programId,
   });
 
-  // Create a transaction
-  const transaction = new Transaction();
+  const initializeVkInstruction = new TransactionInstruction({
+    keys: [
+      { pubkey: vkAccountKeypair.publicKey, isSigner: false, isWritable: true },
+    ],
+    programId,
+    data: serializeInstruction(new InitializeVerifyingKey()),
+  });
 
-  // Add ComputeBudgetProgram instruction to set the compute unit limit
+  const transaction = new Transaction().add(
+    createAccountInstruction,
+    initializeVkInstruction
+  );
+  await sendAndConfirmTransaction(connection, transaction, [payer, vkAccountKeypair]);
+  console.log("--Verifying key account initialized", programId.toBase58());
+  return vkAccountKeypair;
+}
+
+async function verifyProof(
+  connection: Connection,
+  payer: Keypair,
+  programId: PublicKey,
+  vkAccount: Keypair
+): Promise<void> {
+  const proof = await fs.readFile(COMPRESSED_PROOF_PATH);
+
+  const verifyProofInstruction = new TransactionInstruction({
+    keys: [
+      { pubkey: vkAccount.publicKey, isSigner: false, isWritable: false },
+    ],
+    programId,
+    data: Buffer.concat([serializeInstruction(new VerifyProof()), proof]),
+  });
+
+  const transaction = new Transaction();
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
     units: COMPUTE_UNITS,
   });
-  transaction.add(computeBudgetIx);
+  transaction.add(computeBudgetIx, verifyProofInstruction);
 
-  // Add the main instruction to the transaction
-  transaction.add(instruction);
+  await sendAndConfirmTransaction(connection, transaction, [payer]);
+  console.log("--Proof verification transaction confirmed", programId.toBase58());
+}
 
-  // Send and confirm the transaction
-  await sendAndConfirmTransaction(connection, transaction, [triggerKeypair]);
+async function main() {
+  console.log("Launching client...");
+  const connection = await initConnection();
+  const programId = await loadProgramId();
+  const payer = await createPayerAccount(connection);
 
-  console.log("Transaction confirmed");
+  console.log("--Pinging Program ", programId.toBase58());
+
+  console.log("--Setting Verification Key ", programId.toBase58());
+  const vkAccount = await initializeVerifyingKey(connection, payer, programId);
+  console.log("--Verifying Proof", programId.toBase58());
+  await verifyProof(connection, payer, programId, vkAccount);
 }
 
 main().then(
