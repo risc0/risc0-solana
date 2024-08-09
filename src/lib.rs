@@ -253,7 +253,6 @@ pub mod non_solana {
                 .map(|ic| convert_g1(ic))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            // Make sure vk_ic lives long enough
             let vk_ic_box = Box::new(vk_ic);
             let vk_ic_ref: &'a [[u8; G1_LEN]] = Box::leak(vk_ic_box);
 
@@ -492,18 +491,43 @@ pub mod non_solana {
 mod test_lib {
     use super::non_solana::*;
     use super::*;
+    use risc0_zkvm::sha::Digestible;
+    use risc0_zkvm::Receipt;
+    use std::fs::File;
+    use std::io::Write;
+
+    fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
+        let receipt_json_str = include_bytes!("../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+
+        let claim_digest = receipt.inner.groth16().unwrap().claim.digest();
+        let public_inputs = public_inputs::<5>(claim_digest).unwrap();
+
+        let proof_raw = &receipt.inner.groth16().unwrap().seal;
+        let mut proof = Proof {
+            pi_a: proof_raw[0..64].try_into().unwrap(),
+            pi_b: proof_raw[64..192].try_into().unwrap(),
+            pi_c: proof_raw[192..256].try_into().unwrap(),
+        };
+        proof.pi_a = negate_g1(&proof.pi_a).unwrap();
+
+        (receipt, proof, public_inputs)
+    }
+
+    fn load_verification_key() -> VerificationKey<'static> {
+        let vk_json_str = include_str!("../test/data/r0_test_vk.json");
+        serde_json::from_str(vk_json_str).unwrap()
+    }
 
     #[test]
     fn test_import() {
-        let vk_json_str = include_str!("../test/data/r0_test_vk.json");
-        let vk: VerificationKey = serde_json::from_str(&vk_json_str).unwrap();
-        println!("{:?}", vk);
+        let vk = load_verification_key();
+        println!("Verification Key: {:?}", vk);
     }
 
     #[test]
     fn test_roundtrip() {
-        let vk_json_str = include_str!("../test/data/r0_test_vk.json");
-        let vk: VerificationKey = serde_json::from_str(&vk_json_str).unwrap();
+        let vk = load_verification_key();
 
         let exported_json = serde_json::to_string(&vk).unwrap();
         let reimported_vk: VerificationKey = serde_json::from_str(&exported_json).unwrap();
@@ -513,9 +537,7 @@ mod test_lib {
 
     #[test]
     fn test_public_inputs() {
-        let inputs_json_str = include_str!("../test/data/r0_test_public.json");
-
-        let public_inputs: PublicInputs<5> = serde_json::from_str(&inputs_json_str).unwrap();
+        let (_, _, public_inputs) = load_receipt_and_extract_data();
         println!("{:?}", public_inputs);
 
         // Test roundtrip
@@ -530,9 +552,7 @@ mod test_lib {
 
     #[test]
     fn test_proof() {
-        let proof_json_str = include_str!("../test/data/r0_test_proof.json");
-
-        let proof: Proof = serde_json::from_str(proof_json_str).unwrap();
+        let (_, proof, _) = load_receipt_and_extract_data();
         println!("{:?}", proof);
 
         // Convert to bytes
@@ -553,39 +573,55 @@ mod test_lib {
 
     #[test]
     pub fn test_verify() {
-        let proof_json_str = include_str!("../test/data/r0_test_proof.json");
-        let mut proof: Proof = serde_json::from_str(proof_json_str).unwrap();
-
-        proof.pi_a = negate_g1(&proof.pi_a).unwrap();
-
-        let inputs_json_str = include_str!("../test/data/r0_test_public.json");
-        let public_inputs: PublicInputs<5> = serde_json::from_str(&inputs_json_str).unwrap();
-        let vk_json_str = include_str!("../test/data/r0_test_vk.json");
-        let vk: VerificationKey = serde_json::from_str(&vk_json_str).unwrap();
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let vk = load_verification_key();
 
         let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
 
-        verifier.verify().unwrap();
+        assert!(verifier.verify().is_ok(), "Verification failed");
     }
 
     #[test]
     fn test_write_compressed_proof_to_file() {
-        let proof_str = include_str!("../test/data/r0_test_proof.json");
-        let mut proof: Proof = serde_json::from_str(&proof_str).unwrap();
-
-        proof.pi_a = negate_g1(&proof.pi_a).unwrap();
+        let (_, proof, _) = load_receipt_and_extract_data();
 
         let compressed_proof_a = compress_g1_be(&proof.pi_a);
         let compressed_proof_b = compress_g2_be(&proof.pi_b);
         let compressed_proof_c = compress_g1_be(&proof.pi_c);
 
-        let proof = [
+        let compressed_proof = [
             compressed_proof_a.as_slice(),
             compressed_proof_b.as_slice(),
             compressed_proof_c.as_slice(),
         ]
         .concat();
 
-        write_compressed_proof_to_file("test/data/compressed_proof.bin", &proof);
+        write_compressed_proof_to_file("test/data/compressed_proof.bin", &compressed_proof);
+    }
+
+    #[test]
+    fn test_create_public_inputs_file() {
+        let (_, _, public_inputs) = load_receipt_and_extract_data();
+
+        // Convert public inputs to bytes
+        let mut public_inputs_bytes = Vec::new();
+        for input in &public_inputs.inputs {
+            public_inputs_bytes.extend_from_slice(input);
+        }
+
+        // Write public inputs to file
+        let filename = "test/data/public_inputs.bin";
+        let mut file = File::create(filename).expect("Failed to create file");
+        file.write_all(&public_inputs_bytes)
+            .expect("Failed to write public inputs");
+
+        println!("Public inputs written to {}", filename);
+
+        // Verify file contents
+        let file_contents = std::fs::read(filename).expect("Failed to read file");
+        assert_eq!(
+            file_contents, public_inputs_bytes,
+            "File contents do not match expected public inputs"
+        );
     }
 }

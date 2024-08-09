@@ -11,7 +11,7 @@ import {
 } from "@solana/web3.js";
 import fs from "mz/fs";
 import path from "path";
-import { variant, serialize, } from "@dao-xyz/borsh";
+import { variant, serialize } from "@dao-xyz/borsh";
 
 const PROGRAM_KEYPAIR_PATH = path.resolve(
   __dirname,
@@ -20,6 +20,7 @@ const PROGRAM_KEYPAIR_PATH = path.resolve(
 const CONNECTION_URL = "http://127.0.0.1:8899";
 const COMPUTE_UNITS = 1400000;
 const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../../../test/data/compressed_proof.bin");
+const PUBLIC_INPUTS_PATH = path.resolve(__dirname, "../../../test/data/public_inputs.bin");
 
 @variant(0)
 class InitializeVerifyingKey {
@@ -27,11 +28,16 @@ class InitializeVerifyingKey {
 }
 
 @variant(1)
+class InitializePublicInputs {
+  constructor() {}
+}
+
+@variant(2)
 class VerifyProof {
   constructor() {}
 }
 
-type InstructionType = InitializeVerifyingKey | VerifyProof;
+type InstructionType = InitializeVerifyingKey | InitializePublicInputs | VerifyProof;
 
 function serializeInstruction(instruction: InstructionType): Buffer {
   return Buffer.from(serialize(instruction));
@@ -62,44 +68,92 @@ async function initializeVerifyingKey(
   connection: Connection,
   payer: Keypair,
   programId: PublicKey
-): Promise<Keypair> {
-  const vkAccountKeypair = Keypair.generate();
-  const createAccountInstruction = SystemProgram.createAccount({
+): Promise<PublicKey> {
+  const vkAccountSeed = "verification_key";
+  const [vkAccountPubkey] = await PublicKey.findProgramAddress(
+    [Buffer.from(vkAccountSeed)],
+    programId
+  );
+
+  const space = 840; 
+  const lamports = await connection.getMinimumBalanceForRentExemption(space);
+
+  const createAccountIx = SystemProgram.createAccount({
     fromPubkey: payer.publicKey,
-    newAccountPubkey: vkAccountKeypair.publicKey,
-    lamports: await connection.getMinimumBalanceForRentExemption(1024),
-    space: 840,
-    programId: programId,
+    newAccountPubkey: vkAccountPubkey,
+    lamports,
+    space,
+    programId,
   });
 
   const initializeVkInstruction = new TransactionInstruction({
     keys: [
-      { pubkey: vkAccountKeypair.publicKey, isSigner: false, isWritable: true },
+      { pubkey: vkAccountPubkey, isSigner: false, isWritable: true },
     ],
     programId,
     data: serializeInstruction(new InitializeVerifyingKey()),
   });
 
+  const transaction = new Transaction().add(createAccountIx, initializeVkInstruction);
+  
+  try {
+    await sendAndConfirmTransaction(connection, transaction, [payer]);
+    console.log("--Verifying key account initialized", vkAccountPubkey.toBase58());
+  } catch (error) {
+    console.log(error);
+      console.log("--Verifying key account already initialized", vkAccountPubkey.toBase58());
+
+  }
+
+  return vkAccountPubkey;
+}
+
+async function initializePublicInputs(
+  connection: Connection,
+  payer: Keypair,
+  programId: PublicKey
+): Promise<Keypair> {
+  const publicInputsAccountKeypair = Keypair.generate();
+  const createAccountInstruction = SystemProgram.createAccount({
+    fromPubkey: payer.publicKey,
+    newAccountPubkey: publicInputsAccountKeypair.publicKey,
+    lamports: await connection.getMinimumBalanceForRentExemption(160),
+    space: 160,
+    programId: programId,
+  });
+
+  const publicInputs = await fs.readFile(PUBLIC_INPUTS_PATH);
+
+  const initializePublicInputsInstruction = new TransactionInstruction({
+    keys: [
+      { pubkey: publicInputsAccountKeypair.publicKey, isSigner: false, isWritable: true },
+    ],
+    programId,
+    data: Buffer.concat([serializeInstruction(new InitializePublicInputs()), publicInputs]),
+  });
+
   const transaction = new Transaction().add(
     createAccountInstruction,
-    initializeVkInstruction
+    initializePublicInputsInstruction
   );
-  await sendAndConfirmTransaction(connection, transaction, [payer, vkAccountKeypair]);
-  console.log("--Verifying key account initialized", programId.toBase58());
-  return vkAccountKeypair;
+  await sendAndConfirmTransaction(connection, transaction, [payer, publicInputsAccountKeypair]);
+  console.log("--Public inputs account initialized", publicInputsAccountKeypair.publicKey.toBase58());
+  return publicInputsAccountKeypair;
 }
 
 async function verifyProof(
   connection: Connection,
   payer: Keypair,
   programId: PublicKey,
-  vkAccount: Keypair
+  vkAccountPubkey: PublicKey,
+  publicInputsAccount: Keypair
 ): Promise<void> {
   const proof = await fs.readFile(COMPRESSED_PROOF_PATH);
 
   const verifyProofInstruction = new TransactionInstruction({
     keys: [
-      { pubkey: vkAccount.publicKey, isSigner: false, isWritable: false },
+      { pubkey: vkAccountPubkey, isSigner: false, isWritable: false },
+      { pubkey: publicInputsAccount.publicKey, isSigner: false, isWritable: false },
     ],
     programId,
     data: Buffer.concat([serializeInstruction(new VerifyProof()), proof]),
@@ -112,7 +166,7 @@ async function verifyProof(
   transaction.add(computeBudgetIx, verifyProofInstruction);
 
   await sendAndConfirmTransaction(connection, transaction, [payer]);
-  console.log("--Proof verification transaction confirmed", programId.toBase58());
+  console.log("--Proof verification transaction confirmed");
 }
 
 async function main() {
@@ -123,10 +177,14 @@ async function main() {
 
   console.log("--Pinging Program ", programId.toBase58());
 
-  console.log("--Setting Verification Key ", programId.toBase58());
-  const vkAccount = await initializeVerifyingKey(connection, payer, programId);
-  console.log("--Verifying Proof", programId.toBase58());
-  await verifyProof(connection, payer, programId, vkAccount);
+  console.log("--Setting Verification Key");
+  const vkAccountPubkey = await initializeVerifyingKey(connection, payer, programId);
+  
+  console.log("--Initializing Public Inputs");
+  const publicInputsAccount = await initializePublicInputs(connection, payer, programId);
+  
+  console.log("--Verifying Proof");
+  await verifyProof(connection, payer, programId, vkAccountPubkey, publicInputsAccount);
 }
 
 main().then(
@@ -136,4 +194,3 @@ main().then(
     process.exit(-1);
   }
 );
-
