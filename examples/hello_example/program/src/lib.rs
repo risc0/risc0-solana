@@ -1,18 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_solana::{
-    decompress_g1, decompress_g2, public_inputs, Proof, PublicInputs, VerificationKey, Verifier,
-};
+use risc0_solana::{decompress_g1, decompress_g2, public_inputs, Proof, VerificationKey, Verifier};
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
     program_error::ProgramError, pubkey::Pubkey,
 };
 
 entrypoint!(process_instruction);
-
-#[derive(BorshSerialize, BorshDeserialize)]
-struct StoredPublicInputs {
-    inputs: [[u8; 32]; 5],
-}
 
 const VERIFYING_KEY: VerificationKey = VerificationKey {
     nr_pubinputs: 81,
@@ -89,10 +82,14 @@ const VERIFYING_KEY: VerificationKey = VerificationKey {
     ],
 };
 
+#[derive(BorshSerialize, BorshDeserialize)]
+struct Storage {
+    public_inputs: [[u8; 32]; 5],
+}
+
 #[derive(Debug)]
 enum Instruction {
     VerifyProof,
-    GenPublicInputs,
 }
 
 impl Instruction {
@@ -102,7 +99,6 @@ impl Instruction {
         }
         match input[0] {
             0 => Ok(Instruction::VerifyProof),
-            1 => Ok(Instruction::GenPublicInputs),
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -117,29 +113,29 @@ pub fn process_instruction(
 
     match instruction {
         Instruction::VerifyProof => verify_proof(accounts, &instruction_data[1..]),
-        Instruction::GenPublicInputs => generate_public_inputs(accounts, &instruction_data[1..]),
     }
 }
 
-fn generate_public_inputs(accounts: &[AccountInfo], claim_data: &[u8]) -> ProgramResult {
+fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if accounts.is_empty() {
         return Err(ProgramError::NotEnoughAccountKeys);
     }
 
     let public_inputs_account = &accounts[0];
 
-    if claim_data.len() != 32 {
-        return Err(ProgramError::Custom(32));
+    // [claim_digest (32 bytes) | compressed_proof_a (32 bytes) | compressed_proof_b (64 bytes) | compressed_proof_c (32 bytes)]
+    if data.len() != 160 {
+        return Err(ProgramError::InvalidInstructionData);
     }
 
-    let claim_digest: [u8; 32] = claim_data
+    let claim_digest: [u8; 32] = data[..32]
         .try_into()
-        .map_err(|_| ProgramError::Custom(33))?;
+        .map_err(|_| ProgramError::InvalidInstructionData)?;
 
     let public_inputs = public_inputs(claim_digest)?;
 
-    let stored_public_inputs = StoredPublicInputs {
-        inputs: public_inputs.inputs,
+    let stored_public_inputs = Storage {
+        public_inputs: public_inputs.inputs,
     };
 
     borsh::to_writer(
@@ -148,51 +144,34 @@ fn generate_public_inputs(accounts: &[AccountInfo], claim_data: &[u8]) -> Progra
     )?;
 
     msg!("Generated and stored public inputs.");
-    Ok(())
-}
 
-fn verify_proof(accounts: &[AccountInfo], proof_data: &[u8]) -> ProgramResult {
-    if accounts.is_empty() {
-        return Err(ProgramError::NotEnoughAccountKeys);
-    }
-
-    let public_inputs_account = &accounts[0];
-
-    // Extract proof data
-    let compressed_proof_a: &[u8; 32] = proof_data[0..32]
+    // Extract and decompress proof components
+    let compressed_proof_a: &[u8; 32] = data[32..64]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let compressed_proof_b: &[u8; 64] = proof_data[32..96]
+    let compressed_proof_b: &[u8; 64] = data[64..128]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let compressed_proof_c: &[u8; 32] = proof_data[96..128]
+    let compressed_proof_c: &[u8; 32] = data[128..160]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    // Decompress proof components
     let proof_a = decompress_g1(compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
     let proof_b = decompress_g2(compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
     let proof_c = decompress_g1(compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
 
-    let proof: Proof = Proof {
+    let proof = Proof {
         pi_a: proof_a,
         pi_b: proof_b,
         pi_c: proof_c,
     };
 
-    // Read public inputs from the account
-    let stored_public_inputs: StoredPublicInputs =
-        borsh::from_slice(&public_inputs_account.data.borrow())?;
-
-    let public = PublicInputs {
-        inputs: stored_public_inputs.inputs,
-    };
-
-    let verifier = Verifier::new(&proof, &public, &VERIFYING_KEY);
+    // Verify the proof
+    let verifier = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
 
     verifier.verify().map_err(|e| {
         msg!("Proof verification failed: {:?}", e);
-        ProgramError::Custom(1)
+        ProgramError::Custom(4)
     })?;
 
     msg!("Proof successfully verified.");
@@ -203,18 +182,16 @@ fn verify_proof(accounts: &[AccountInfo], proof_data: &[u8]) -> ProgramResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use risc0_solana::non_solana::{self, compress_g1_be, compress_g2_be, negate_g1};
-    use risc0_solana::{public_inputs, Proof, PublicInputs, Verifier};
+    use risc0_solana::non_solana::{self, negate_g1};
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
     use solana_program::clock::Epoch;
     use solana_program::pubkey::Pubkey;
     use solana_program::rent::Rent;
 
-    fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
+    fn get_receipt_data() -> ([u8; 32], Proof) {
         let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
-
         let claim_digest = receipt
             .inner
             .groth16()
@@ -223,7 +200,6 @@ mod tests {
             .digest()
             .try_into()
             .unwrap();
-        let public_inputs = public_inputs(claim_digest).unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         let mut proof: Proof = Proof {
@@ -233,109 +209,12 @@ mod tests {
         };
         proof.pi_a = negate_g1(&proof.pi_a).unwrap();
 
-        (receipt, proof, public_inputs)
+        (claim_digest, proof)
     }
 
     #[test]
-    fn test_process_instruction() {
-        let (_, proof, _arr) = load_receipt_and_extract_data();
-
-        // Create a mock program ID
-        let program_id = Pubkey::new_unique();
-
-        // Create a mock account for storing the public inputs
-        let pubinput_key = Pubkey::new_unique();
-        let mut pubinput_lamports = 0;
-        let mut pubinput_data = vec![0u8; 160];
-        let pubinput_account = AccountInfo::new(
-            &pubinput_key,
-            true,
-            true,
-            &mut pubinput_lamports,
-            &mut pubinput_data,
-            &program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let claim_digest = get_claim_digest();
-
-        let mut instruction_data = vec![1];
-        instruction_data.extend_from_slice(&claim_digest);
-
-        let accounts = vec![pubinput_account.clone()];
-        let result = process_instruction(&program_id, &accounts, &instruction_data);
-
-        assert!(
-            result.is_ok(),
-            "Failed to process GenPublicInputs instruction"
-        );
-
-        let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
-        let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
-        let compressed_proof_c = non_solana::compress_g1_be(&proof.pi_c);
-
-        // Prepare the instruction data for proof verification
-        let verify_instruction = [
-            &[0],
-            compressed_proof_a.as_slice(),
-            compressed_proof_b.as_slice(),
-            compressed_proof_c.as_slice(),
-        ]
-        .concat();
-
-        // Verify the proof
-        let result = process_instruction(&program_id, &[pubinput_account], &verify_instruction);
-
-        assert!(result.is_ok(), "Proof verification failed: {:?}", result);
-    }
-
-    #[test]
-    fn proof_verification_should_succeed() {
-        let (_, proof, public_inputs) = load_receipt_and_extract_data();
-
-        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
-        verifier.verify().unwrap();
-    }
-
-    #[test]
-    fn proof_verification_with_compressed_inputs_should_succeed() {
-        let (_, proof, public_inputs) = load_receipt_and_extract_data();
-
-        let compressed_proof_a = compress_g1_be(&proof.pi_a);
-        let compressed_proof_b = compress_g2_be(&proof.pi_b);
-        let compressed_proof_c = compress_g1_be(&proof.pi_c);
-
-        let proof_a = decompress_g1(&compressed_proof_a).unwrap();
-        let proof_b = decompress_g2(&compressed_proof_b).unwrap();
-        let proof_c = decompress_g1(&compressed_proof_c).unwrap();
-
-        let decompressed_proof: Proof = Proof {
-            pi_a: proof_a,
-            pi_b: proof_b,
-            pi_c: proof_c,
-        };
-
-        assert_eq!(proof.pi_a, proof_a);
-
-        let verifier: Verifier<5> =
-            Verifier::new(&decompressed_proof, &public_inputs, &VERIFYING_KEY);
-        verifier.verify().unwrap();
-    }
-
-    #[test]
-    fn test_public_inputs() {
-        let (receipt, proof, public_inputs) = load_receipt_and_extract_data();
-
-        println!("{:?}", receipt.metadata.verifier_parameters);
-
-        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
-
-        verifier.verify().unwrap();
-    }
-
-    #[test]
-    fn test_gen_public_inputs() {
+    fn test_verify() {
+        let (claim_digest, proof) = get_receipt_data();
         // Create a mock program ID
         let program_id = Pubkey::new_unique();
 
@@ -354,42 +233,108 @@ mod tests {
             Epoch::default(),
         );
 
-        let claim_digest = get_claim_digest();
+        let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
+        let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
+        let compressed_proof_c = non_solana::compress_g1_be(&proof.pi_c);
 
-        let mut instruction_data = vec![1]; // 2 is the instruction code for GenPublicInputs
-        instruction_data.extend_from_slice(&claim_digest);
+        // Prepare the instruction data for generate and verify
+        let instruction_data = [
+            &[0],
+            &claim_digest[..],
+            &compressed_proof_a,
+            &compressed_proof_b,
+            &compressed_proof_c,
+        ]
+        .concat();
 
         let accounts = vec![pubinput_account.clone()];
         let result = process_instruction(&program_id, &accounts, &instruction_data);
 
         assert!(
             result.is_ok(),
-            "Failed to process GenPublicInputs instruction"
+            "Failed to process GenAndVerify instruction: {:?}",
+            result
         );
-
-        let stored_public_inputs: StoredPublicInputs =
-            borsh::from_slice(&pubinput_account.data.borrow()).unwrap();
-
-        let expected_public_inputs = public_inputs(claim_digest).unwrap();
-
-        assert_eq!(
-            stored_public_inputs.inputs, expected_public_inputs.inputs,
-            "Stored public inputs do not match expected values"
-        );
-
-        println!("GenPublicInputs instruction test passed successfully");
     }
 
-    fn get_claim_digest() -> [u8; 32] {
-        let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
-        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
-        receipt
-            .inner
-            .groth16()
-            .unwrap()
-            .claim
-            .digest()
-            .try_into()
-            .unwrap()
+    #[test]
+    fn fail_verify_with_invalid_proof() {
+        let (claim_digest, proof) = get_receipt_data();
+
+        let program_id = Pubkey::new_unique();
+
+        let pubinput_key = Pubkey::new_unique();
+        let mut pubinput_lamports = Rent::default().minimum_balance(160);
+        let mut pubinput_data = vec![0u8; 160];
+        let pubinput_account = AccountInfo::new(
+            &pubinput_key,
+            true,
+            true,
+            &mut pubinput_lamports,
+            &mut pubinput_data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
+        let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
+        let mut invalid_proof_c = non_solana::compress_g1_be(&proof.pi_c);
+
+        // Modify the proof to make it invalid
+        invalid_proof_c[0] ^= 0xFF;
+
+        let instruction_data = [
+            &[0],
+            &claim_digest[..],
+            &compressed_proof_a,
+            &compressed_proof_b,
+            &invalid_proof_c,
+        ]
+        .concat();
+
+        let accounts = vec![pubinput_account.clone()];
+        let result = process_instruction(&program_id, &accounts, &instruction_data);
+
+        assert!(result.is_err(), "Expected an error due to invalid proof");
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::Custom(4),
+            "Expected Custom(4) error for proof verification failure"
+        );
+    }
+
+    #[test]
+    fn fail_test_verify_with_invalid_instruction_data() {
+        let program_id = Pubkey::new_unique();
+        let pubinput_key = Pubkey::new_unique();
+        let mut pubinput_lamports = Rent::default().minimum_balance(160);
+        let mut pubinput_data = vec![0u8; 160];
+        let pubinput_account = AccountInfo::new(
+            &pubinput_key,
+            true,
+            true,
+            &mut pubinput_lamports,
+            &mut pubinput_data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        // Prepare invalid instruction data (too short)
+        let invalid_instruction_data = vec![0; 100]; // Should be 161 bytes (1 + 32 + 32 + 64 + 32)
+
+        let accounts = vec![pubinput_account.clone()];
+        let result = process_instruction(&program_id, &accounts, &invalid_instruction_data);
+
+        assert!(
+            result.is_err(),
+            "Expected an error due to invalid instruction data"
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            ProgramError::InvalidInstructionData,
+            "Expected InvalidInstructionData error"
+        );
     }
 }

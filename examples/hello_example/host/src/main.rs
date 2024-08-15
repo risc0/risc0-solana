@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::Write,
-    path::Path,
 };
 
 use methods::{EXAMPLE_ELF, EXAMPLE_ID};
@@ -31,10 +30,10 @@ fn main() {
 
     let receipt_json = serde_json::to_vec(&receipt).unwrap();
 
-    let dir_path = Path::new("../../test/data/receipt.json");
+    let dir_path = "../../../test/data/receipt2.json";
     let _dir = fs::create_dir_all(dir_path).unwrap();
 
-    let mut file = File::create(dir_path.join("receipt.json")).unwrap();
+    let mut file = File::create(dir_path).unwrap();
 
     // Write the data
     file.write_all(&receipt_json).unwrap();

@@ -49,11 +49,12 @@ async function createPayerAccount(connection: Connection): Promise<Keypair> {
   await connection.confirmTransaction(airdropRequest);
   return payerKeypair;
 }
-async function generatePublicInputs(
+
+async function verify_proof(
   connection: Connection,
   payer: Keypair,
   programId: PublicKey
-): Promise<Keypair> {
+): Promise<void> {
   const publicInputsAccountKeypair = Keypair.generate();
   const space = 160; // 5 * 32 bytes for public inputs
   const lamports = await connection.getMinimumBalanceForRentExemption(space);
@@ -67,21 +68,15 @@ async function generatePublicInputs(
   });
 
   const claimDigest = await fs.readFile(CLAIM_DIGEST_PATH);
-  console.log("Claim digest length:", claimDigest.length);
-  console.log("Claim digest:", claimDigest.toString('hex'));
-
-  if (claimDigest.length !== 32) {
-    throw new Error(`Invalid claim digest length: ${claimDigest.length}. Expected 32 bytes.`);
-  }
+  const compressedProof = await fs.readFile(COMPRESSED_PROOF_PATH);
 
   const instructionData = Buffer.concat([
-    Buffer.from([InstructionType.GenPublicInputs]), 
-    claimDigest
+    Buffer.from([0]), // Instruction index for GenAndVerify
+    claimDigest,
+    compressedProof
   ]);
-  console.log("Instruction data length:", instructionData.length);
-  console.log("Instruction data:", instructionData.toString('hex'));
 
-  const genPublicInputsInstruction = new TransactionInstruction({
+  const genAndVerifyInstruction = new TransactionInstruction({
     keys: [
       { pubkey: publicInputsAccountKeypair.publicKey, isSigner: false, isWritable: true },
     ],
@@ -91,7 +86,7 @@ async function generatePublicInputs(
 
   const transaction = new Transaction().add(
     createAccountInstruction,
-    genPublicInputsInstruction
+    genAndVerifyInstruction
   );
 
   try {
@@ -100,55 +95,9 @@ async function generatePublicInputs(
       preflightCommitment: 'confirmed',
     });
     console.log("Transaction signature:", signature);
-    console.log("--Public inputs generated", publicInputsAccountKeypair.publicKey.toBase58());
-
-    const transactionDetails = await connection.getTransaction(signature, {
-      maxSupportedTransactionVersion: 0,
-    });
-    console.log("Transaction details:", JSON.stringify(transactionDetails, null, 2));
-
+    console.log("Proof verified!");
   } catch (error) {
-    console.error("Error generating public inputs:", error);
-    if (error instanceof Error && 'logs' in error) {
-      console.error("Transaction logs:", (error as any).logs);
-    }
-    throw error;
-  }
-
-  return publicInputsAccountKeypair;
-}
-
-
-async function verifyProof(
-  connection: Connection,
-  payer: Keypair,
-  programId: PublicKey,
-  publicInputsAccount: Keypair
-): Promise<void> {
-  const proof = await fs.readFile(COMPRESSED_PROOF_PATH);
-
-  const verifyProofInstruction = new TransactionInstruction({
-    keys: [
-      { pubkey: publicInputsAccount.publicKey, isSigner: false, isWritable: false },
-    ],
-    programId,
-    data: Buffer.concat([serializeInstruction(InstructionType.VerifyProof), proof]),
-  });
-
-  const transaction = new Transaction();
-  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({
-    units: COMPUTE_UNITS,
-  });
-  transaction.add(computeBudgetIx, verifyProofInstruction);
-
-  try {
-    await sendAndConfirmTransaction(connection, transaction, [payer], {
-      skipPreflight: true,
-      preflightCommitment: 'confirmed',
-    });
-    console.log("--Proof verification transaction confirmed");
-  } catch (error) {
-    console.error("Error verifying proof:", error);
+    console.error("Error in generate and verify operation:", error);
     throw error;
   }
 }
@@ -162,15 +111,14 @@ async function main() {
   console.log("--Pinging Program ", programId.toBase58());
 
   try {
-    console.log("--Generating Public Inputs");
-    const publicInputsAccount = await generatePublicInputs(connection, payer, programId);
-    
-    console.log("--Verifying Proof");
-    await verifyProof(connection, payer, programId, publicInputsAccount);
+    console.log("-- Verifying Proof");
+    await verify_proof(connection, payer, programId);
   } catch (error) {
     console.error("Error in main execution:", error);
   }
 }
+
+
 
 main().then(
   () => process.exit(),

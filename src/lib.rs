@@ -99,12 +99,8 @@ impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
     }
 }
 
-fn digest_from_hex(hex_str: &str) -> Digest {
-    let bytes = hex::decode(hex_str).expect("Invalid hex string");
-    Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
-}
-
 pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>, ProgramError> {
+    // From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
     let allowed_control_root: Digest =
         digest_from_hex("a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e");
     let bn254_identity_control_id: Digest =
@@ -127,6 +123,11 @@ pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>, ProgramE
         inputs[i] = input.try_into().unwrap();
     }
     Ok(PublicInputs { inputs })
+}
+
+fn digest_from_hex(hex_str: &str) -> Digest {
+    let bytes = hex::decode(hex_str).expect("Invalid hex string");
+    Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
 }
 
 fn split_digest_bytes(d: Digest) -> Result<(Vec<u8>, Vec<u8>), anyhow::Error> {
