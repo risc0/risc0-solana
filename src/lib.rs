@@ -104,9 +104,7 @@ fn digest_from_hex(hex_str: &str) -> Digest {
     Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
 }
 
-pub fn public_inputs<const N: usize>(
-    claim_digest: Digest,
-) -> Result<PublicInputs<N>, ProgramError> {
+pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>, ProgramError> {
     let allowed_control_root: Digest =
         digest_from_hex("a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e");
     let bn254_identity_control_id: Digest =
@@ -114,8 +112,8 @@ pub fn public_inputs<const N: usize>(
 
     let (a0, a1) =
         split_digest_bytes(allowed_control_root).map_err(|_| ProgramError::InvalidAccountData)?;
-    let (c0, c1) =
-        split_digest_bytes(claim_digest).map_err(|_| ProgramError::InvalidAccountData)?;
+    let (c0, c1) = split_digest_bytes(Digest::from(claim_digest))
+        .map_err(|_| ProgramError::InvalidAccountData)?;
 
     let mut id_bn554 = bn254_identity_control_id.as_bytes().to_vec();
     id_bn554.reverse();
@@ -124,11 +122,7 @@ pub fn public_inputs<const N: usize>(
 
     let input_vec = [a0, a1, c0, c1, id_bn254_fr];
 
-    if N != input_vec.len() {
-        return Err(ProgramError::InvalidAccountData);
-    }
-
-    let mut inputs = [[0u8; 32]; N];
+    let mut inputs = [[0u8; 32]; 5];
     for (i, input) in input_vec.into_iter().enumerate() {
         inputs[i] = input.try_into().unwrap();
     }
@@ -500,8 +494,15 @@ mod test_lib {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
 
-        let claim_digest = receipt.inner.groth16().unwrap().claim.digest();
-        let public_inputs = public_inputs::<5>(claim_digest).unwrap();
+        let claim_digest = receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap();
+        let public_inputs = public_inputs(claim_digest).unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         let mut proof = Proof {
@@ -600,28 +601,36 @@ mod test_lib {
     }
 
     #[test]
-    fn test_create_public_inputs_file() {
-        let (_, _, public_inputs) = load_receipt_and_extract_data();
+    fn write_claim_digest_to_file() {
+        let claim_digest = get_claim_digest();
 
-        // Convert public inputs to bytes
-        let mut public_inputs_bytes = Vec::new();
-        for input in &public_inputs.inputs {
-            public_inputs_bytes.extend_from_slice(input);
-        }
+        let output_path = "test/data/claim_digest.bin";
 
-        // Write public inputs to file
-        let filename = "test/data/public_inputs.bin";
-        let mut file = File::create(filename).expect("Failed to create file");
-        file.write_all(&public_inputs_bytes)
-            .expect("Failed to write public inputs");
+        let mut file = File::create(output_path).expect("Failed to create file");
+        file.write_all(&claim_digest)
+            .expect("Failed to write claim digest to file");
 
-        println!("Public inputs written to {}", filename);
+        println!("Raw claim digest written to {:?}", output_path);
 
-        // Verify file contents
-        let file_contents = std::fs::read(filename).expect("Failed to read file");
+        // Verify the file was written correctly
+        let read_digest = std::fs::read(output_path).expect("Failed to read claim digest file");
         assert_eq!(
-            file_contents, public_inputs_bytes,
-            "File contents do not match expected public inputs"
+            claim_digest.to_vec(),
+            read_digest,
+            "Written and read claim digests do not match"
         );
+    }
+
+    fn get_claim_digest() -> [u8; 32] {
+        let receipt_json_str = include_bytes!("../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+        receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap()
     }
 }

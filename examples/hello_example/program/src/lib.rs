@@ -1,5 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_solana::{decompress_g1, decompress_g2, Proof, PublicInputs, VerificationKey, Verifier};
+use risc0_solana::{
+    decompress_g1, decompress_g2, public_inputs, Proof, PublicInputs, VerificationKey, Verifier,
+};
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
     program_error::ProgramError, pubkey::Pubkey,
@@ -12,7 +14,6 @@ struct StoredPublicInputs {
     inputs: [[u8; 32]; 5],
 }
 
-// Embedded Verification Key
 const VERIFYING_KEY: VerificationKey = VerificationKey {
     nr_pubinputs: 81,
     vk_alpha_g1: [
@@ -90,8 +91,8 @@ const VERIFYING_KEY: VerificationKey = VerificationKey {
 
 #[derive(Debug)]
 enum Instruction {
-    InitializePublicInputs,
     VerifyProof,
+    GenPublicInputs,
 }
 
 impl Instruction {
@@ -100,8 +101,8 @@ impl Instruction {
             return Err(ProgramError::InvalidInstructionData);
         }
         match input[0] {
-            0 => Ok(Instruction::InitializePublicInputs),
-            1 => Ok(Instruction::VerifyProof),
+            0 => Ok(Instruction::VerifyProof),
+            1 => Ok(Instruction::GenPublicInputs),
             _ => Err(ProgramError::InvalidInstructionData),
         }
     }
@@ -115,11 +116,39 @@ pub fn process_instruction(
     let instruction = Instruction::unpack(instruction_data)?;
 
     match instruction {
-        Instruction::InitializePublicInputs => {
-            initialize_public_inputs(accounts, &instruction_data[1..])
-        }
         Instruction::VerifyProof => verify_proof(accounts, &instruction_data[1..]),
+        Instruction::GenPublicInputs => generate_public_inputs(accounts, &instruction_data[1..]),
     }
+}
+
+fn generate_public_inputs(accounts: &[AccountInfo], claim_data: &[u8]) -> ProgramResult {
+    if accounts.is_empty() {
+        return Err(ProgramError::NotEnoughAccountKeys);
+    }
+
+    let public_inputs_account = &accounts[0];
+
+    if claim_data.len() != 32 {
+        return Err(ProgramError::Custom(32));
+    }
+
+    let claim_digest: [u8; 32] = claim_data
+        .try_into()
+        .map_err(|_| ProgramError::Custom(33))?;
+
+    let public_inputs = public_inputs(claim_digest)?;
+
+    let stored_public_inputs = StoredPublicInputs {
+        inputs: public_inputs.inputs,
+    };
+
+    borsh::to_writer(
+        &mut public_inputs_account.data.borrow_mut()[..],
+        &stored_public_inputs,
+    )?;
+
+    msg!("Generated and stored public inputs.");
+    Ok(())
 }
 
 fn verify_proof(accounts: &[AccountInfo], proof_data: &[u8]) -> ProgramResult {
@@ -171,36 +200,6 @@ fn verify_proof(accounts: &[AccountInfo], proof_data: &[u8]) -> ProgramResult {
     Ok(())
 }
 
-fn initialize_public_inputs(accounts: &[AccountInfo], public_inputs: &[u8]) -> ProgramResult {
-    if accounts.is_empty() {
-        return Err(ProgramError::NotEnoughAccountKeys);
-    }
-
-    let public_inputs_account = &accounts[0];
-
-    if public_inputs.len() != 160 {
-        // 5 * 32 bytes
-        return Err(ProgramError::InvalidInstructionData);
-    }
-
-    let mut stored_inputs = [[0u8; 32]; 5];
-    for (i, chunk) in public_inputs.chunks(32).enumerate() {
-        stored_inputs[i].copy_from_slice(chunk);
-    }
-
-    let stored_public_inputs = StoredPublicInputs {
-        inputs: stored_inputs,
-    };
-
-    borsh::to_writer(
-        &mut public_inputs_account.data.borrow_mut()[..],
-        &stored_public_inputs,
-    )?;
-    msg!("Initialized public inputs.");
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,13 +209,21 @@ mod tests {
     use risc0_zkvm::Receipt;
     use solana_program::clock::Epoch;
     use solana_program::pubkey::Pubkey;
+    use solana_program::rent::Rent;
 
     fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
 
-        let claim_digest = receipt.inner.groth16().unwrap().claim.digest();
-        let public_inputs = public_inputs::<5>(claim_digest).unwrap();
+        let claim_digest = receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap();
+        let public_inputs = public_inputs(claim_digest).unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         let mut proof: Proof = Proof {
@@ -231,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_process_instruction() {
-        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let (_, proof, _arr) = load_receipt_and_extract_data();
 
         // Create a mock program ID
         let program_id = Pubkey::new_unique();
@@ -251,22 +258,18 @@ mod tests {
             Epoch::default(),
         );
 
-        // Prepare public inputs for instruction
-        let mut public_inputs_bytes = Vec::new();
-        for input in &public_inputs.inputs {
-            public_inputs_bytes.extend_from_slice(input);
-        }
+        let claim_digest = get_claim_digest();
 
-        // Initialize the public inputs
-        let mut init_pubinput_instruction = vec![0]; // 0 is the instruction code for InitializePublicInputs
-        init_pubinput_instruction.extend_from_slice(&public_inputs_bytes);
+        let mut instruction_data = vec![1];
+        instruction_data.extend_from_slice(&claim_digest);
 
-        process_instruction(
-            &program_id,
-            &[pubinput_account.clone()],
-            &init_pubinput_instruction,
-        )
-        .expect("Failed to initialize public inputs");
+        let accounts = vec![pubinput_account.clone()];
+        let result = process_instruction(&program_id, &accounts, &instruction_data);
+
+        assert!(
+            result.is_ok(),
+            "Failed to process GenPublicInputs instruction"
+        );
 
         let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
         let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
@@ -274,7 +277,7 @@ mod tests {
 
         // Prepare the instruction data for proof verification
         let verify_instruction = [
-            &[1], // 1 is the instruction code for VerifyProof
+            &[0],
             compressed_proof_a.as_slice(),
             compressed_proof_b.as_slice(),
             compressed_proof_c.as_slice(),
@@ -329,5 +332,64 @@ mod tests {
         let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
 
         verifier.verify().unwrap();
+    }
+
+    #[test]
+    fn test_gen_public_inputs() {
+        // Create a mock program ID
+        let program_id = Pubkey::new_unique();
+
+        // Create a mock account for storing the public inputs
+        let pubinput_key = Pubkey::new_unique();
+        let mut pubinput_lamports = Rent::default().minimum_balance(160); // 5 * 32 bytes
+        let mut pubinput_data = vec![0u8; 160];
+        let pubinput_account = AccountInfo::new(
+            &pubinput_key,
+            true,
+            true,
+            &mut pubinput_lamports,
+            &mut pubinput_data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let claim_digest = get_claim_digest();
+
+        let mut instruction_data = vec![1]; // 2 is the instruction code for GenPublicInputs
+        instruction_data.extend_from_slice(&claim_digest);
+
+        let accounts = vec![pubinput_account.clone()];
+        let result = process_instruction(&program_id, &accounts, &instruction_data);
+
+        assert!(
+            result.is_ok(),
+            "Failed to process GenPublicInputs instruction"
+        );
+
+        let stored_public_inputs: StoredPublicInputs =
+            borsh::from_slice(&pubinput_account.data.borrow()).unwrap();
+
+        let expected_public_inputs = public_inputs(claim_digest).unwrap();
+
+        assert_eq!(
+            stored_public_inputs.inputs, expected_public_inputs.inputs,
+            "Stored public inputs do not match expected values"
+        );
+
+        println!("GenPublicInputs instruction test passed successfully");
+    }
+
+    fn get_claim_digest() -> [u8; 32] {
+        let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+        receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap()
     }
 }
