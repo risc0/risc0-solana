@@ -583,6 +583,20 @@ mod test_lib {
     }
 
     #[test]
+    fn test_write_proof_to_file() {
+        let (_, proof, _) = load_receipt_and_extract_data();
+
+        let proof = [
+            proof.pi_a.as_slice(),
+            proof.pi_b.as_slice(),
+            proof.pi_c.as_slice(),
+        ]
+        .concat();
+
+        write_compressed_proof_to_file("test/data/proof.bin", &proof);
+    }
+
+    #[test]
     fn test_write_compressed_proof_to_file() {
         let (_, proof, _) = load_receipt_and_extract_data();
 
