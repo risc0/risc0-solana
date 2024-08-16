@@ -30,7 +30,7 @@ fn main() {
 
     let receipt_json = serde_json::to_vec(&receipt).unwrap();
 
-    let dir_path = "../../../test/data/receipt2.json";
+    let dir_path = "../../../test/data/receipt.json";
     let _dir = fs::create_dir_all(dir_path).unwrap();
 
     let mut file = File::create(dir_path).unwrap();

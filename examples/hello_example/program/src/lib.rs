@@ -7,6 +7,12 @@ use solana_program::{
 
 entrypoint!(process_instruction);
 
+// From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
+const ALLOWED_CONTROL_ROOT: &str =
+    "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+const BN254_IDENTITY_CONTROL_ID: &str =
+    "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+
 const VERIFYING_KEY: VerificationKey = VerificationKey {
     nr_pubinputs: 81,
     vk_alpha_g1: [
@@ -132,7 +138,11 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let public_inputs = public_inputs(claim_digest)?;
+    let public_inputs = public_inputs(
+        claim_digest,
+        ALLOWED_CONTROL_ROOT,
+        BN254_IDENTITY_CONTROL_ID,
+    )?;
 
     let stored_public_inputs = Storage {
         public_inputs: public_inputs.inputs,

@@ -99,12 +99,13 @@ impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
     }
 }
 
-pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>, ProgramError> {
-    // From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
-    let allowed_control_root: Digest =
-        digest_from_hex("a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e");
-    let bn254_identity_control_id: Digest =
-        digest_from_hex("51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e");
+pub fn public_inputs(
+    claim_digest: [u8; 32],
+    allowed_control_root: &str,
+    bn254_identity_control_id: &str,
+) -> Result<PublicInputs<5>, ProgramError> {
+    let allowed_control_root: Digest = digest_from_hex(allowed_control_root);
+    let bn254_identity_control_id: Digest = digest_from_hex(bn254_identity_control_id);
 
     let (a0, a1) =
         split_digest_bytes(allowed_control_root).map_err(|_| ProgramError::InvalidAccountData)?;
@@ -169,6 +170,11 @@ pub mod non_solana {
 
     type G1 = ark_bn254::g1::G1Affine;
     type G2 = ark_bn254::g2::G2Affine;
+
+    // Base field: q = 21888242871839275222246405745257275088696311157297823662689037894645226208583
+    // https://docs.rs/ark-bn254/latest/ark_bn254/
+    const BASE_FIELD_MODULUS: &str =
+        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct ProofJson {
@@ -463,14 +469,8 @@ pub mod non_solana {
 
         let mut y_big = BigUint::from_bytes_be(y);
 
-        // Negate y: y = FIELD_MODULUS - y
-        // Base field: q = 21888242871839275222246405745257275088696311157297823662689037894645226208583
-        // https://docs.rs/ark-bn254/latest/ark_bn254/
-        let field_modulus = BigUint::parse_bytes(
-            b"21888242871839275222246405745257275088696311157297823662689037894645226208583",
-            10,
-        )
-        .ok_or_else(|| anyhow!("Failed to parse field modulus"))?;
+        let field_modulus = BigUint::parse_bytes(BASE_FIELD_MODULUS.as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse field modulus"))?;
         y_big = field_modulus - y_big;
 
         let mut result = [0u8; 64];
@@ -491,6 +491,12 @@ mod test_lib {
     use std::fs::File;
     use std::io::Write;
 
+    // From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
+    const ALLOWED_CONTROL_ROOT: &str =
+        "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+    const BN254_IDENTITY_CONTROL_ID: &str =
+        "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+
     fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
@@ -503,7 +509,12 @@ mod test_lib {
             .digest()
             .try_into()
             .unwrap();
-        let public_inputs = public_inputs(claim_digest).unwrap();
+        let public_inputs = public_inputs(
+            claim_digest,
+            ALLOWED_CONTROL_ROOT,
+            BN254_IDENTITY_CONTROL_ID,
+        )
+        .unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         let mut proof = Proof {
