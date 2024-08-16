@@ -134,10 +134,12 @@ fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32]), anyhow::Error> 
 }
 
 fn to_fixed_array(input: &[u8]) -> [u8; 32] {
-    // TODO it's intentional to ignore bytes if larger than 32 bytes? Seems problematic
+    assert!(input.len() <= 32, "Input length must not exceed 32 bytes");
+
     let mut fixed_array = [0u8; 32];
-    let start = core::cmp::max(32, input.len()) - core::cmp::min(32, input.len());
-    fixed_array[start..].copy_from_slice(&input[input.len().saturating_sub(32)..]);
+    let start_index = 32 - input.len();
+
+    fixed_array[start_index..].copy_from_slice(input);
     fixed_array
 }
 
