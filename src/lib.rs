@@ -114,15 +114,10 @@ pub fn public_inputs(
 
     let mut id_bn554 = bn254_identity_control_id.as_bytes().to_vec();
     id_bn554.reverse();
-    let id_bn254_fr =
-        from_u256_hex(&hex::encode(id_bn554)).map_err(|_| ProgramError::InvalidAccountData)?;
+    let id_bn254_fr = to_fixed_array(&id_bn554);
 
-    let input_vec = [a0, a1, c0, c1, id_bn254_fr];
+    let inputs = [a0, a1, c0, c1, id_bn254_fr];
 
-    let mut inputs = [[0u8; 32]; 5];
-    for (i, input) in input_vec.into_iter().enumerate() {
-        inputs[i] = input.try_into().unwrap();
-    }
     Ok(PublicInputs { inputs })
 }
 
@@ -131,24 +126,15 @@ fn digest_from_hex(hex_str: &str) -> Digest {
     Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
 }
 
-fn split_digest_bytes(d: Digest) -> Result<(Vec<u8>, Vec<u8>), anyhow::Error> {
-    let big_endian: Vec<u8> = d.as_bytes().to_vec().iter().rev().cloned().collect();
+fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32]), anyhow::Error> {
+    let big_endian: Vec<u8> = d.as_bytes().iter().rev().copied().collect();
     let middle = big_endian.len() / 2;
     let (b, a) = big_endian.split_at(middle);
-    Ok((
-        from_u256_hex(&hex::encode(a))?,
-        from_u256_hex(&hex::encode(b))?,
-    ))
+    Ok((to_fixed_array(&a), to_fixed_array(&b)))
 }
 
-fn from_u256_hex(value: &str) -> Result<Vec<u8>, anyhow::Error> {
-    Ok(to_fixed_array(
-        hex::decode(value).map_err(|_| anyhow::anyhow!("conversion from u256 failed"))?,
-    )
-    .to_vec())
-}
-
-fn to_fixed_array(input: Vec<u8>) -> [u8; 32] {
+fn to_fixed_array(input: &[u8]) -> [u8; 32] {
+    // TODO it's intentional to ignore bytes if larger than 32 bytes? Seems problematic
     let mut fixed_array = [0u8; 32];
     let start = core::cmp::max(32, input.len()) - core::cmp::min(32, input.len());
     fixed_array[start..].copy_from_slice(&input[input.len().saturating_sub(32)..]);
