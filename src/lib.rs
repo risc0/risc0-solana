@@ -116,12 +116,8 @@ pub fn public_inputs(
     id_bn554.reverse();
     let id_bn254_fr = to_fixed_array(&id_bn554);
 
-    let input_vec = [a0, a1, c0, c1, id_bn254_fr];
+    let inputs = [a0, a1, c0, c1, id_bn254_fr];
 
-    let mut inputs = [[0u8; 32]; 5];
-    for (i, input) in input_vec.into_iter().enumerate() {
-        inputs[i] = input.try_into().unwrap();
-    }
     Ok(PublicInputs { inputs })
 }
 
