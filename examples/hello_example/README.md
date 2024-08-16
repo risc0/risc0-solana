@@ -44,7 +44,7 @@ solana config set --url localhost
 To test on the devnet, configure Solana to the correct API. 
 
 ```
-solana config set --url https://api.devnet.solana.com
+solana config set --url localhost
 ```
 
 To run a local test node, open a new terminal instance and run:
@@ -63,8 +63,7 @@ solana logs
 
 The program is defined in the `src/lib.rs` file, along with some example data in the `data` directory. 
 
-To interact with the compile, deploy, test, you can utilize the bun scripts. 
-
+To interact with the compile, deploy, test, you can utilize the bun scripts from inside `./program`. 
 
 
 ```
@@ -73,6 +72,8 @@ bun run test:program    // Test the program with BPF
 bun run build:program   // Builds the program with BPF
 bun run deploy:program  // Deploys the program
 ```
+
+> To install bun, see https://bun.sh/docs/installation
 
 If you'd like to interact with the deployed Solana program (locally), use the `main.ts` script, which initializes the verification keys and verifies a proof, onchain. 
 
