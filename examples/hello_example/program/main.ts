@@ -18,7 +18,7 @@ const PROGRAM_KEYPAIR_PATH = path.resolve(
 );
 const CONNECTION_URL = "http://127.0.0.1:8899";
 const COMPUTE_UNITS = 1400000;
-const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../../../test/data/compressed_proof.bin");
+const COMPRESSED_PROOF_PATH = path.resolve(__dirname, "../../../test/data/proof.bin");
 const CLAIM_DIGEST_PATH = path.resolve(__dirname, "../../../test/data/claim_digest.bin");
 enum InstructionType {
   VerifyProof = 0,

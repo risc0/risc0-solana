@@ -129,8 +129,9 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
 
     let public_inputs_account = &accounts[0];
 
+    // TODO update doc, or serialization format to support both compressed and normal
     // [claim_digest (32 bytes) | compressed_proof_a (32 bytes) | compressed_proof_b (64 bytes) | compressed_proof_c (32 bytes)]
-    if data.len() != 160 {
+    if data.len() != 288 {
         return Err(ProgramError::InvalidInstructionData);
     }
 
@@ -156,25 +157,21 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     msg!("Generated and stored public inputs.");
 
     // Extract and decompress proof components
-    let compressed_proof_a: &[u8; 32] = data[32..64]
+    let pi_a: [u8; 64] = data[32..96]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let compressed_proof_b: &[u8; 64] = data[64..128]
+    let pi_b: [u8; 128] = data[96..224]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
-    let compressed_proof_c: &[u8; 32] = data[128..160]
+    let pi_c: [u8; 64] = data[224..288]
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let proof_a = decompress_g1(compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
-    let proof_b = decompress_g2(compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
-    let proof_c = decompress_g1(compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
+    // let proof_a = decompress_g1(compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
+    // let proof_b = decompress_g2(compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
+    // let proof_c = decompress_g1(compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
 
-    let proof = Proof {
-        pi_a: proof_a,
-        pi_b: proof_b,
-        pi_c: proof_c,
-    };
+    let proof = Proof { pi_a, pi_b, pi_c };
 
     // Verify the proof
     let verifier = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
