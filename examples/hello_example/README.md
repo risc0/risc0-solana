@@ -44,7 +44,7 @@ solana config set --url localhost
 To test on the devnet, configure Solana to the correct API. 
 
 ```
-solana config set --url localhost
+solana config set --url devnet
 ```
 
 To run a local test node, open a new terminal instance and run:
