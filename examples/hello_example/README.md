@@ -94,4 +94,4 @@ You can run the zkVM program from the root by running:
 BONSAI_API_KEY=<YOUR_API_KEY> BONSAI_API_URL=<API_URL> cargo run -p host
 ```
 
-This will write a receipt to the test directory. Carefully insepct the tests to understand the necessary pre-processing and compression steps to verify this receipt onchain. 
+This will write a receipt to the test directory. Carefully inspect the tests to understand the necessary pre-processing and compression steps to verify this receipt onchain. 
