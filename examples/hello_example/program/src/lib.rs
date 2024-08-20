@@ -7,6 +7,12 @@ use solana_program::{
 
 entrypoint!(process_instruction);
 
+#[derive(Debug)]
+enum VerifierProgramError {
+    DecompressionFailure,
+    VerificationFailure,
+}
+
 // From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
 const ALLOWED_CONTROL_ROOT: &str =
     "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
@@ -110,6 +116,12 @@ impl Instruction {
     }
 }
 
+impl From<VerifierProgramError> for ProgramError {
+    fn from(error: VerifierProgramError) -> Self {
+        ProgramError::Custom(error as u32)
+    }
+}
+
 pub fn process_instruction(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -153,8 +165,6 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         &stored_public_inputs,
     )?;
 
-    msg!("Generated and stored public inputs.");
-
     // Extract and decompress proof components
     let compressed_proof_a: &[u8; 32] = data[32..64]
         .try_into()
@@ -166,9 +176,12 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let proof_a = decompress_g1(compressed_proof_a).map_err(|_| ProgramError::Custom(1))?;
-    let proof_b = decompress_g2(compressed_proof_b).map_err(|_| ProgramError::Custom(2))?;
-    let proof_c = decompress_g1(compressed_proof_c).map_err(|_| ProgramError::Custom(3))?;
+    let proof_a = decompress_g1(compressed_proof_a)
+        .map_err(|_| VerifierProgramError::DecompressionFailure)?;
+    let proof_b = decompress_g2(compressed_proof_b)
+        .map_err(|_| VerifierProgramError::DecompressionFailure)?;
+    let proof_c = decompress_g1(compressed_proof_c)
+        .map_err(|_| VerifierProgramError::DecompressionFailure)?;
 
     let proof = Proof {
         pi_a: proof_a,
@@ -181,7 +194,7 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
 
     verifier.verify().map_err(|e| {
         msg!("Proof verification failed: {:?}", e);
-        ProgramError::Custom(4)
+        VerifierProgramError::VerificationFailure
     })?;
 
     msg!("Proof successfully verified.");
@@ -262,7 +275,7 @@ mod tests {
 
         assert!(
             result.is_ok(),
-            "Failed to process GenAndVerify instruction: {:?}",
+            "Failed to process Verify instruction: {:?}",
             result
         );
     }
@@ -309,8 +322,8 @@ mod tests {
         assert!(result.is_err(), "Expected an error due to invalid proof");
         assert_eq!(
             result.unwrap_err(),
-            ProgramError::Custom(4),
-            "Expected Custom(4) error for proof verification failure"
+            VerifierProgramError::VerificationFailure.into(),
+            "Expected Verification Failure error for proof verification failure"
         );
     }
 

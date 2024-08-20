@@ -9,6 +9,18 @@ use solana_program::alt_bn128::prelude::{
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
 
+pub enum Risc0SolanaError {
+    G1CompressionError,
+    G2CompressionError,
+    VerificationError,
+    InvalidPublicInput,
+    SerializationError,
+    DeserializationError,
+    InvalidInstructionData,
+    ArithmeticError,
+    PairingError,
+}
+
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
 
@@ -40,12 +52,18 @@ pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
 }
 
-pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], ProgramError> {
-    alt_bn128_g1_decompress(g1_bytes).map_err(|_| ProgramError::InvalidArgument)
+pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], Risc0SolanaError> {
+    alt_bn128_g1_decompress(g1_bytes).map_err(|_| Risc0SolanaError::G1CompressionError)
 }
 
-pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], ProgramError> {
-    alt_bn128_g2_decompress(g2_bytes).map_err(|_| ProgramError::InvalidArgument)
+pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], Risc0SolanaError> {
+    alt_bn128_g2_decompress(g2_bytes).map_err(|_| Risc0SolanaError::G2CompressionError)
+}
+
+impl From<Risc0SolanaError> for ProgramError {
+    fn from(error: Risc0SolanaError) -> Self {
+        ProgramError::Custom(error as u32)
+    }
 }
 
 impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
@@ -62,16 +80,16 @@ impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
         self.perform_pairing(&prepared_public)
     }
 
-    fn prepare_public_inputs(&self) -> Result<[u8; 64], ProgramError> {
+    fn prepare_public_inputs(&self) -> Result<[u8; 64], Risc0SolanaError> {
         let mut prepared = self.vk.vk_ic[0];
         for (i, input) in self.public.inputs.iter().enumerate() {
             let mul_res =
                 alt_bn128_multiplication(&[&self.vk.vk_ic[i + 1][..], &input[..]].concat())
-                    .unwrap();
+                    .map_err(|_| Risc0SolanaError::ArithmeticError)?;
             prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
                 .unwrap()
                 .try_into()
-                .map_err(|_| ProgramError::InvalidArgument)?;
+                .map_err(|_| Risc0SolanaError::ArithmeticError)?;
         }
         Ok(prepared)
     }
@@ -89,10 +107,11 @@ impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
         ]
         .concat();
 
-        let pairing_res = alt_bn128_pairing(&pairing_input).unwrap();
+        let pairing_res =
+            alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
 
         if pairing_res[31] != 1 {
-            return Err(ProgramError::Custom(2));
+            return Err(Risc0SolanaError::VerificationError.into());
         }
 
         Ok(())
@@ -130,7 +149,7 @@ fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32]), anyhow::Error> 
     let big_endian: Vec<u8> = d.as_bytes().iter().rev().copied().collect();
     let middle = big_endian.len() / 2;
     let (b, a) = big_endian.split_at(middle);
-    Ok((to_fixed_array(&a), to_fixed_array(&b)))
+    Ok((to_fixed_array(a), to_fixed_array(b)))
 }
 
 fn to_fixed_array(input: &[u8]) -> [u8; 32] {
