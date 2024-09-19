@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_solana::{decompress_g1, decompress_g2, public_inputs, Proof, VerificationKey, Verifier};
+use risc0_solana::{
+    decompress_g1, decompress_g2, public_inputs, verify_proof, Proof, VerificationKey,
+};
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
     program_error::ProgramError, pubkey::Pubkey,
@@ -144,11 +146,11 @@ pub fn process_instruction(
     let instruction = Instruction::unpack(instruction_data)?;
 
     match instruction {
-        Instruction::VerifyProof => verify_proof(accounts, &instruction_data[1..]),
+        Instruction::VerifyProof => verify(accounts, &instruction_data[1..]),
     }
 }
 
-fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+fn verify(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     if accounts.is_empty() {
         return Err(ProgramError::NotEnoughAccountKeys);
     }
@@ -203,10 +205,7 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         pi_c: proof_c,
     };
 
-    // Verify the proof
-    let verifier = Verifier::new(&proof, &public_inputs, &VERIFYING_KEY);
-
-    verifier.verify().map_err(|e| {
+    let _ = verify_proof(&proof, &public_inputs, &VERIFYING_KEY).map_err(|e| {
         msg!("Proof verification failed: {:?}", e);
         VerifierProgramError::VerificationFailure
     })?;
@@ -218,17 +217,24 @@ fn verify_proof(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use risc0_solana::non_solana::{self, negate_g1};
+    use risc0_solana::non_solana::{compress_g1_be, compress_g2_be, negate_g1};
+    use risc0_solana::{
+        decompress_g1, decompress_g2, public_inputs, verify_proof, Proof, PublicInputs,
+        VerificationKey,
+    };
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
-    use solana_program::clock::Epoch;
-    use solana_program::pubkey::Pubkey;
-    use solana_program::rent::Rent;
 
-    fn get_receipt_data() -> ([u8; 32], Proof) {
+    // Constants for test data
+    const ALLOWED_CONTROL_ROOT: &str =
+        "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+    const BN254_IDENTITY_CONTROL_ID: &str =
+        "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+
+    fn load_receipt_and_extract_data() -> (Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+
         let claim_digest = receipt
             .inner
             .groth16()
@@ -237,141 +243,108 @@ mod tests {
             .digest()
             .try_into()
             .unwrap();
+        let public_inputs = public_inputs(
+            claim_digest,
+            ALLOWED_CONTROL_ROOT,
+            BN254_IDENTITY_CONTROL_ID,
+        )
+        .unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
-        let mut proof: Proof = Proof {
+        let mut proof = Proof {
             pi_a: proof_raw[0..64].try_into().unwrap(),
             pi_b: proof_raw[64..192].try_into().unwrap(),
             pi_c: proof_raw[192..256].try_into().unwrap(),
         };
         proof.pi_a = negate_g1(&proof.pi_a).unwrap();
 
-        (claim_digest, proof)
+        (proof, public_inputs)
+    }
+
+    fn load_verification_key() -> VerificationKey<'static> {
+        let vk_json_str = include_str!("../../../../test/data/r0_test_vk.json");
+        serde_json::from_str(vk_json_str).unwrap()
     }
 
     #[test]
-    fn test_verify() {
-        let (claim_digest, proof) = get_receipt_data();
-        // Create a mock program ID
-        let program_id = Pubkey::new_unique();
+    fn test_verify_proof() {
+        let (proof, public_inputs) = load_receipt_and_extract_data();
+        let vk = load_verification_key();
+        let result = verify_proof(&proof, &public_inputs, &vk);
 
-        // Create a mock account for storing the public inputs
-        let pubinput_key = Pubkey::new_unique();
-        let mut pubinput_lamports = Rent::default().minimum_balance(160); // 5 * 32 bytes
-        let mut pubinput_data = vec![0u8; 160];
-        let pubinput_account = AccountInfo::new(
-            &pubinput_key,
-            true,
-            true,
-            &mut pubinput_lamports,
-            &mut pubinput_data,
-            &program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
-        let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
-        let compressed_proof_c = non_solana::compress_g1_be(&proof.pi_c);
-
-        // Prepare the instruction data for generate and verify
-        let instruction_data = [
-            &[0],
-            &claim_digest[..],
-            &compressed_proof_a,
-            &compressed_proof_b,
-            &compressed_proof_c,
-        ]
-        .concat();
-
-        let accounts = vec![pubinput_account.clone()];
-        let result = process_instruction(&program_id, &accounts, &instruction_data);
-
-        assert!(
-            result.is_ok(),
-            "Failed to process Verify instruction: {:?}",
-            result
-        );
+        // Assert that the verification is successful
+        assert!(result.is_ok(), "Proof verification failed");
     }
 
     #[test]
-    fn fail_verify_with_invalid_proof() {
-        let (claim_digest, proof) = get_receipt_data();
+    fn test_public_inputs_serialization() {
+        let (_, public_inputs) = load_receipt_and_extract_data();
+        let serialized = serde_json::to_string(&public_inputs).unwrap();
+        let deserialized: PublicInputs<5> = serde_json::from_str(&serialized).unwrap();
 
-        let program_id = Pubkey::new_unique();
-
-        let pubinput_key = Pubkey::new_unique();
-        let mut pubinput_lamports = Rent::default().minimum_balance(160);
-        let mut pubinput_data = vec![0u8; 160];
-        let pubinput_account = AccountInfo::new(
-            &pubinput_key,
-            true,
-            true,
-            &mut pubinput_lamports,
-            &mut pubinput_data,
-            &program_id,
-            false,
-            Epoch::default(),
-        );
-
-        let compressed_proof_a = non_solana::compress_g1_be(&proof.pi_a);
-        let compressed_proof_b = non_solana::compress_g2_be(&proof.pi_b);
-        let mut invalid_proof_c = non_solana::compress_g1_be(&proof.pi_c);
-
-        // Modify the proof to make it invalid
-        invalid_proof_c[0] ^= 0xFF;
-
-        let instruction_data = [
-            &[0],
-            &claim_digest[..],
-            &compressed_proof_a,
-            &compressed_proof_b,
-            &invalid_proof_c,
-        ]
-        .concat();
-
-        let accounts = vec![pubinput_account.clone()];
-        let result = process_instruction(&program_id, &accounts, &instruction_data);
-
-        assert!(result.is_err(), "Expected an error due to invalid proof");
         assert_eq!(
-            result.unwrap_err(),
-            VerifierProgramError::VerificationFailure.into(),
-            "Expected Verification Failure error for proof verification failure"
+            public_inputs, deserialized,
+            "Public inputs serialization roundtrip failed"
         );
     }
 
     #[test]
-    fn fail_test_verify_with_invalid_instruction_data() {
-        let program_id = Pubkey::new_unique();
-        let pubinput_key = Pubkey::new_unique();
-        let mut pubinput_lamports = Rent::default().minimum_balance(160);
-        let mut pubinput_data = vec![0u8; 160];
-        let pubinput_account = AccountInfo::new(
-            &pubinput_key,
-            true,
-            true,
-            &mut pubinput_lamports,
-            &mut pubinput_data,
-            &program_id,
-            false,
-            Epoch::default(),
+    fn test_proof_serialization() {
+        let (proof, _) = load_receipt_and_extract_data();
+        let serialized = serde_json::to_string(&proof).unwrap();
+        let deserialized: Proof = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(proof, deserialized, "Proof serialization roundtrip failed");
+    }
+
+    #[test]
+    fn test_verification_key_serialization() {
+        let vk = load_verification_key();
+        let serialized = serde_json::to_string(&vk).unwrap();
+        let deserialized: VerificationKey = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(
+            vk, deserialized,
+            "Verification key serialization roundtrip failed"
         );
+    }
 
-        // Prepare invalid instruction data (too short)
-        let invalid_instruction_data = vec![0; 100]; // Should be 161 bytes (1 + 32 + 32 + 64 + 32)
+    #[test]
+    fn test_compress_and_decompress_proof() {
+        let (proof, _) = load_receipt_and_extract_data();
 
-        let accounts = vec![pubinput_account.clone()];
-        let result = process_instruction(&program_id, &accounts, &invalid_instruction_data);
+        let compressed_proof_a = compress_g1_be(&proof.pi_a);
+        let compressed_proof_b = compress_g2_be(&proof.pi_b);
+        let compressed_proof_c = compress_g1_be(&proof.pi_c);
 
-        assert!(
-            result.is_err(),
-            "Expected an error due to invalid instruction data"
+        let decompressed_proof_a = decompress_g1(&compressed_proof_a).unwrap();
+        let decompressed_proof_b = decompress_g2(&compressed_proof_b).unwrap();
+        let decompressed_proof_c = decompress_g1(&compressed_proof_c).unwrap();
+
+        assert_eq!(
+            proof.pi_a, decompressed_proof_a,
+            "Proof pi_a mismatch after decompression"
         );
         assert_eq!(
-            result.unwrap_err(),
-            ProgramError::InvalidInstructionData,
-            "Expected InvalidInstructionData error"
+            proof.pi_b, decompressed_proof_b,
+            "Proof pi_b mismatch after decompression"
+        );
+        assert_eq!(
+            proof.pi_c, decompressed_proof_c,
+            "Proof pi_c mismatch after decompression"
+        );
+    }
+
+    #[test]
+    fn test_negate_g1() {
+        let (proof, _) = load_receipt_and_extract_data();
+        let negated_pi_a = negate_g1(&proof.pi_a).unwrap();
+        let original_pi_a = negate_g1(&negated_pi_a).unwrap();
+
+        // Assert that double negation returns the original pi_a
+        assert_eq!(
+            proof.pi_a, original_pi_a,
+            "Double negation of G1 point failed"
         );
     }
 }

@@ -23,6 +23,7 @@ use solana_program::alt_bn128::prelude::{
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
 
+#[derive(Debug)]
 pub enum Risc0SolanaError {
     G1CompressionError,
     G2CompressionError,
@@ -37,12 +38,6 @@ pub enum Risc0SolanaError {
 
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
-
-pub struct Verifier<'a, const N_PUBLIC: usize> {
-    proof: &'a Proof,
-    public: &'a PublicInputs<N_PUBLIC>,
-    vk: &'a VerificationKey<'a>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
@@ -80,56 +75,55 @@ impl From<Risc0SolanaError> for ProgramError {
     }
 }
 
-impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
-    pub fn new(
-        proof: &'a Proof,
-        public: &'a PublicInputs<N_PUBLIC>,
-        vk: &'a VerificationKey<'a>,
-    ) -> Self {
-        Self { proof, public, vk }
+/// Verifies a Groth16 proof.
+///
+/// # Arguments
+///
+/// * `proof` - The proof to verify.
+/// * `public` - The public inputs to the proof.
+/// * `vk` - The verification key.
+///
+/// # Returns
+///
+/// * `Ok(())` if the proof is valid.
+/// * `Err(ProgramError)` if the proof is invalid or an error occurs.
+pub fn verify_proof<const N_PUBLIC: usize>(
+    proof: &Proof,
+    public: &PublicInputs<N_PUBLIC>,
+    vk: &VerificationKey,
+) -> ProgramResult {
+    // Prepare public inputs
+    let mut prepared = vk.vk_ic[0];
+    for (i, input) in public.inputs.iter().enumerate() {
+        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
+            .map_err(|_| Risc0SolanaError::ArithmeticError)?;
+        prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
+            .unwrap()
+            .try_into()
+            .map_err(|_| Risc0SolanaError::ArithmeticError)?;
     }
 
-    pub fn verify(&self) -> ProgramResult {
-        let prepared_public = self.prepare_public_inputs()?;
-        self.perform_pairing(&prepared_public)
+    // Perform pairing check
+    let pairing_input = [
+        proof.pi_a.as_slice(),
+        proof.pi_b.as_slice(),
+        prepared.as_slice(),
+        vk.vk_gamma_g2.as_slice(),
+        proof.pi_c.as_slice(),
+        vk.vk_delta_g2.as_slice(),
+        vk.vk_alpha_g1.as_slice(),
+        vk.vk_beta_g2.as_slice(),
+    ]
+    .concat();
+
+    let pairing_res =
+        alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
+
+    if pairing_res[31] != 1 {
+        return Err(Risc0SolanaError::VerificationError.into());
     }
 
-    fn prepare_public_inputs(&self) -> Result<[u8; 64], Risc0SolanaError> {
-        let mut prepared = self.vk.vk_ic[0];
-        for (i, input) in self.public.inputs.iter().enumerate() {
-            let mul_res =
-                alt_bn128_multiplication(&[&self.vk.vk_ic[i + 1][..], &input[..]].concat())
-                    .map_err(|_| Risc0SolanaError::ArithmeticError)?;
-            prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
-                .unwrap()
-                .try_into()
-                .map_err(|_| Risc0SolanaError::ArithmeticError)?;
-        }
-        Ok(prepared)
-    }
-
-    fn perform_pairing(&self, prepared_public: &[u8; 64]) -> ProgramResult {
-        let pairing_input = [
-            self.proof.pi_a.as_slice(),
-            self.proof.pi_b.as_slice(),
-            prepared_public.as_slice(),
-            self.vk.vk_gamma_g2.as_slice(),
-            self.proof.pi_c.as_slice(),
-            self.vk.vk_delta_g2.as_slice(),
-            self.vk.vk_alpha_g1.as_slice(),
-            self.vk.vk_beta_g2.as_slice(),
-        ]
-        .concat();
-
-        let pairing_res =
-            alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
-
-        if pairing_res[31] != 1 {
-            return Err(Risc0SolanaError::VerificationError.into());
-        }
-
-        Ok(())
-    }
+    Ok(())
 }
 
 pub fn public_inputs(
@@ -192,7 +186,7 @@ pub mod non_solana {
     type G1 = ark_bn254::g1::G1Affine;
     type G2 = ark_bn254::g2::G2Affine;
 
-    // Base field: q = 21888242871839275222246405745257275088696311157297823662689037894645226208583
+    // Base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
     const BASE_FIELD_MODULUS: &str =
         "21888242871839275222246405745257275088696311157297823662689037894645226208583";
@@ -383,6 +377,7 @@ pub mod non_solana {
             bytes
         }
     }
+
     fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
         if values.len() != 3 {
             return Err(anyhow!(
@@ -609,10 +604,8 @@ mod test_lib {
     pub fn test_verify() {
         let (_, proof, public_inputs) = load_receipt_and_extract_data();
         let vk = load_verification_key();
-
-        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
-
-        assert!(verifier.verify().is_ok(), "Verification failed");
+        let res = verify_proof(&proof, &public_inputs, &vk);
+        assert!(res.is_ok(), "Verification failed");
     }
 
     #[test]

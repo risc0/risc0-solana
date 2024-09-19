@@ -29,9 +29,9 @@ fn main() {
     let input: u32 = 15 * u32::pow(2, 27) + 1;
     let env = ExecutorEnv::builder()
         .write(&input)
-        .unwrap()
+        .expect("Failed to write input")
         .build()
-        .unwrap();
+        .expect("Failed to build ExecutorEnv");
 
     let receipt = default_prover()
         .prove_with_ctx(
@@ -58,7 +58,7 @@ fn main() {
     // Write the data
     file.write_all(&receipt_json).unwrap();
 
-    let _output: u32 = receipt.journal.decode().unwrap();
+    let _output: u32 = receipt.journal.decode().expect("failed to decode");
 
     receipt.verify(EXAMPLE_ID).unwrap();
 }
