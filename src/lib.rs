@@ -39,6 +39,13 @@ pub enum Risc0SolanaError {
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
 
+// Base field modulus `q` for BN254
+// https://docs.rs/ark-bn254/latest/ark_bn254/
+pub(crate) const BASE_FIELD_MODULUS_Q: [u8; 32] = [
+    0x30, 0x64, 0x4E, 0x72, 0xE1, 0x31, 0xA0, 0x29, 0xB8, 0x50, 0x45, 0xB6, 0x81, 0x81, 0x58, 0x5D,
+    0x97, 0x81, 0x6A, 0x91, 0x68, 0x71, 0xCA, 0x8D, 0x3C, 0x20, 0x8C, 0x16, 0xD8, 0x7C, 0xFD, 0x47,
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     pub pi_a: [u8; 64],
@@ -99,6 +106,9 @@ pub fn verify_proof<const N_PUBLIC: usize>(
     // Prepare public inputs
     let mut prepared = vk.vk_ic[0];
     for (i, input) in public.inputs.iter().enumerate() {
+        if !is_scalar_valid(input) {
+            return Err(Risc0SolanaError::InvalidPublicInput.into());
+        }
         let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
             .map_err(|_| Risc0SolanaError::ArithmeticError)?;
         prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
@@ -182,6 +192,19 @@ fn to_fixed_array(input: &[u8]) -> [u8; 32] {
     fixed_array
 }
 
+fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
+    for i in 0..32 {
+        let s_byte = scalar[i];
+        let q_byte = BASE_FIELD_MODULUS_Q[i];
+        if s_byte < q_byte {
+            return true; // scalar < q
+        } else if s_byte > q_byte {
+            return false; // scalar > q
+        }
+    }
+    return false;
+}
+
 #[cfg(not(target_os = "solana"))]
 pub mod non_solana {
 
@@ -197,11 +220,6 @@ pub mod non_solana {
 
     type G1 = ark_bn254::g1::G1Affine;
     type G2 = ark_bn254::g2::G2Affine;
-
-    // Base field modulus for BN254
-    // https://docs.rs/ark-bn254/latest/ark_bn254/
-    const BASE_FIELD_MODULUS: &str =
-        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct ProofJson {
@@ -520,9 +538,8 @@ pub mod non_solana {
         let y = &point[32..];
 
         let mut y_big = BigUint::from_bytes_be(y);
+        let field_modulus = BigUint::from_bytes_be(&BASE_FIELD_MODULUS_Q);
 
-        let field_modulus = BigUint::parse_bytes(BASE_FIELD_MODULUS.as_bytes(), 10)
-            .ok_or_else(|| anyhow!("Failed to parse field modulus"))?;
         y_big = field_modulus - y_big;
 
         let mut result = [0u8; 64];
@@ -548,6 +565,11 @@ mod test_lib {
         "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
     const BN254_IDENTITY_CONTROL_ID: &str =
         "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+
+    // Reference base field modulus for BN254
+    // https://docs.rs/ark-bn254/latest/ark_bn254/
+    const REF_BASE_FIELD_MODULUS: &str =
+        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
 
     fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
@@ -776,6 +798,45 @@ mod test_lib {
                 Err(ProgramError::Custom(code)) if code == Risc0SolanaError::InvalidPublicInput as u32
             ),
             "Verification should fail with incorrect vk_ic length"
+        );
+    }
+
+    #[test]
+    fn test_scalar_validity_check() {
+        let valid_scalar: [u8; 32] = [0u8; 32];
+        assert!(is_scalar_valid(&valid_scalar), "Scalar should be valid");
+
+        let scalar_equal_q = BASE_FIELD_MODULUS_Q;
+        assert!(
+            !is_scalar_valid(&scalar_equal_q),
+            "Scalar equal to q should be invalid"
+        );
+
+        let mut scalar_greater_q = BASE_FIELD_MODULUS_Q;
+        scalar_greater_q[31] += 1; // Increment last byte to make scalar > q
+        assert!(
+            !is_scalar_valid(&scalar_greater_q),
+            "Scalar greater than q should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_base_field_modulus_against_reference() {
+        use num_bigint::BigUint;
+
+        let ref_base_field_modulus = BigUint::parse_bytes(REF_BASE_FIELD_MODULUS.as_bytes(), 10)
+            .expect("Failed to parse BASE_FIELD_MODULUS");
+
+        let ref_base_field_modulus_hex = format!("{:X}", ref_base_field_modulus);
+
+        let field_modulus_q_hex: String = BASE_FIELD_MODULUS_Q
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect();
+
+        assert_eq!(
+            field_modulus_q_hex, ref_base_field_modulus_hex,
+            "FIELD_MODULUS_Q does not match reference REF_BASE_FIELD_MODULUS"
         );
     }
 }
