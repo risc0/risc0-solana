@@ -29,9 +29,6 @@ pub enum Risc0SolanaError {
     G2CompressionError,
     VerificationError,
     InvalidPublicInput,
-    SerializationError,
-    DeserializationError,
-    InvalidInstructionData,
     ArithmeticError,
     PairingError,
 }
