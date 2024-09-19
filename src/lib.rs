@@ -116,16 +116,24 @@ pub fn verify_proof<const N_PUBLIC: usize>(
     ]
     .concat();
 
+    //  Use the Solana alt_bn128_pairing syscall.
+    //
+    //  The `alt_bn128_pairing` function does not return the actual pairing result.
+    //  Instead, it returns a 32-byte big-endian integer:
+    //   - If the pairing check passes, it returns 1 represented as a 32-byte big-endian integer (`[0u8; 31] + [1u8]`).
+    //   - If the pairing check fails, it returns 0 represented as a 32-byte big-endian integer (`[0u8; 32]`).
     let pairing_res =
         alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
 
-    if pairing_res[31] != 1 {
+    let mut expected = [0u8; 32];
+    expected[31] = 1;
+
+    if pairing_res != expected {
         return Err(Risc0SolanaError::VerificationError.into());
     }
 
     Ok(())
 }
-
 pub fn public_inputs(
     claim_digest: [u8; 32],
     allowed_control_root: &str,
