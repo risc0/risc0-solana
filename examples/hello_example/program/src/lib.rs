@@ -13,14 +13,15 @@
 // limitations under the License.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_solana::{
-    decompress_g1, decompress_g2, public_inputs, verify_proof, Proof, VerificationKey,
-};
+use risc0_solana::{public_inputs, verify_proof, Proof, VerificationKey};
+use solana_program::entrypoint::ProgramResult;
 use solana_program::{
-    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, msg,
-    program_error::ProgramError, pubkey::Pubkey,
+    account_info::AccountInfo,
+    alt_bn128::compression::prelude::{alt_bn128_g1_decompress, alt_bn128_g2_decompress},
+    entrypoint, msg,
+    program_error::ProgramError,
+    pubkey::Pubkey,
 };
-
 entrypoint!(process_instruction);
 
 #[derive(Debug)]
@@ -192,11 +193,13 @@ fn verify(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         .try_into()
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-    let proof_a = decompress_g1(compressed_proof_a)
+    let proof_a = alt_bn128_g1_decompress(compressed_proof_a)
         .map_err(|_| VerifierProgramError::DecompressionFailure)?;
-    let proof_b = decompress_g2(compressed_proof_b)
+
+    let proof_b = alt_bn128_g2_decompress(compressed_proof_b)
         .map_err(|_| VerifierProgramError::DecompressionFailure)?;
-    let proof_c = decompress_g1(compressed_proof_c)
+
+    let proof_c = alt_bn128_g1_decompress(compressed_proof_c)
         .map_err(|_| VerifierProgramError::DecompressionFailure)?;
 
     let proof = Proof {
@@ -217,13 +220,13 @@ fn verify(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
 
 #[cfg(test)]
 mod tests {
-    use risc0_solana::non_solana::{compress_g1_be, compress_g2_be, negate_g1};
-    use risc0_solana::{
-        decompress_g1, decompress_g2, public_inputs, verify_proof, Proof, PublicInputs,
-        VerificationKey,
-    };
+    use risc0_solana::client::{compress_g1_be, compress_g2_be, negate_g1};
+    use risc0_solana::{public_inputs, verify_proof, Proof, PublicInputs, VerificationKey};
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
+    use solana_program::alt_bn128::compression::prelude::{
+        alt_bn128_g1_decompress, alt_bn128_g2_decompress,
+    };
 
     // Constants for test data
     const ALLOWED_CONTROL_ROOT: &str =
@@ -317,9 +320,9 @@ mod tests {
         let compressed_proof_b = compress_g2_be(&proof.pi_b);
         let compressed_proof_c = compress_g1_be(&proof.pi_c);
 
-        let decompressed_proof_a = decompress_g1(&compressed_proof_a).unwrap();
-        let decompressed_proof_b = decompress_g2(&compressed_proof_b).unwrap();
-        let decompressed_proof_c = decompress_g1(&compressed_proof_c).unwrap();
+        let decompressed_proof_a = alt_bn128_g1_decompress(&compressed_proof_a).unwrap();
+        let decompressed_proof_b = alt_bn128_g2_decompress(&compressed_proof_b).unwrap();
+        let decompressed_proof_c = alt_bn128_g1_decompress(&compressed_proof_c).unwrap();
 
         assert_eq!(
             proof.pi_a, decompressed_proof_a,

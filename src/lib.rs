@@ -14,9 +14,6 @@
 
 use borsh::BorshSerialize;
 use risc0_zkp::core::digest::Digest;
-use solana_program::alt_bn128::compression::prelude::{
-    alt_bn128_g1_decompress, alt_bn128_g2_decompress,
-};
 use solana_program::alt_bn128::prelude::{
     alt_bn128_addition, alt_bn128_multiplication, alt_bn128_pairing,
 };
@@ -69,14 +66,6 @@ pub struct VerificationKey<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
-}
-
-pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], Risc0SolanaError> {
-    alt_bn128_g1_decompress(g1_bytes).map_err(|_| Risc0SolanaError::G1CompressionError)
-}
-
-pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], Risc0SolanaError> {
-    alt_bn128_g2_decompress(g2_bytes).map_err(|_| Risc0SolanaError::G2CompressionError)
 }
 
 impl From<Risc0SolanaError> for ProgramError {
@@ -154,6 +143,7 @@ pub fn verify_proof<const N_PUBLIC: usize>(
 
     Ok(())
 }
+
 pub fn public_inputs(
     claim_digest: [u8; 32],
     allowed_control_root: &str,
@@ -212,7 +202,7 @@ fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
 }
 
 #[cfg(not(target_os = "solana"))]
-pub mod non_solana {
+pub mod client {
 
     use super::*;
     use {
@@ -561,7 +551,7 @@ pub mod non_solana {
 
 #[cfg(test)]
 mod test_lib {
-    use super::non_solana::*;
+    use super::client::*;
     use super::*;
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
