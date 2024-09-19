@@ -92,6 +92,10 @@ pub fn verify_proof<const N_PUBLIC: usize>(
     public: &PublicInputs<N_PUBLIC>,
     vk: &VerificationKey,
 ) -> ProgramResult {
+    // Check vk_ic is the correct length
+    if vk.vk_ic.len() != N_PUBLIC + 1 {
+        return Err(Risc0SolanaError::InvalidPublicInput.into());
+    }
     // Prepare public inputs
     let mut prepared = vk.vk_ic[0];
     for (i, input) in public.inputs.iter().enumerate() {
@@ -745,5 +749,33 @@ mod test_lib {
             .digest()
             .try_into()
             .unwrap()
+    }
+
+    #[test]
+    fn test_verify_proof_vk_ic_length() {
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let mut vk = load_verification_key();
+
+        let result = verify_proof(&proof, &public_inputs, &vk);
+        assert!(
+            result.is_ok(),
+            "Verification should pass with correct vk_ic length"
+        );
+
+        let incorrect_vk_ic: Vec<[u8; G1_LEN]> = vk.vk_ic[..vk.vk_ic.len() - 1].to_vec();
+        let incorrect_vk_ic_box = Box::new(incorrect_vk_ic);
+        let incorrect_vk_ic_ref: &'static [[u8; G1_LEN]] = Box::leak(incorrect_vk_ic_box);
+
+        let mut incorrect_vk = vk.clone();
+        incorrect_vk.vk_ic = incorrect_vk_ic_ref;
+
+        let result = verify_proof(&proof, &public_inputs, &incorrect_vk);
+        assert!(
+            matches!(
+                result,
+                Err(ProgramError::Custom(code)) if code == Risc0SolanaError::InvalidPublicInput as u32
+            ),
+            "Verification should fail with incorrect vk_ic length"
+        );
     }
 }
