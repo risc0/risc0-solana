@@ -45,6 +45,12 @@ pub(crate) const BASE_FIELD_MODULUS_Q: [u8; 32] = [
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
+    // NOTE: `pi_a` is expected to be the **negated**
+    // version of the proof element.
+    //
+    // The pairing equation for Groth16 verification is:
+    //
+    // e(-pi_a, vk_beta_g2) * e(vk_alpha_g1, pi_b) * e(prepared_input, vk_gamma_g2) * e(pi_c, vk_delta_g2) == 1
     pub pi_a: [u8; 64],
     pub pi_b: [u8; 128],
     pub pi_c: [u8; 64],
@@ -86,6 +92,9 @@ impl From<Risc0SolanaError> for ProgramError {
 /// * `proof` - The proof to verify.
 /// * `public` - The public inputs to the proof.
 /// * `vk` - The verification key.
+///
+/// Note: The proof's `pi_a` element is expected to be the negated version of the proof element.
+/// Ensure that `pi_a` has been negated before calling this function.
 ///
 /// # Returns
 ///
@@ -537,8 +546,10 @@ pub mod non_solana {
         let mut y_big = BigUint::from_bytes_be(y);
         let field_modulus = BigUint::from_bytes_be(&BASE_FIELD_MODULUS_Q);
 
+        // Negate the y-coordinate to get -g1.
         y_big = field_modulus - y_big;
 
+        // Reconstruct the point with the negated y-coordinate
         let mut result = [0u8; 64];
         result[..32].copy_from_slice(x);
         let y_bytes = y_big.to_bytes_be();
@@ -773,7 +784,7 @@ mod test_lib {
     #[test]
     fn test_verify_proof_vk_ic_length() {
         let (_, proof, public_inputs) = load_receipt_and_extract_data();
-        let mut vk = load_verification_key();
+        let vk = load_verification_key();
 
         let result = verify_proof(&proof, &public_inputs, &vk);
         assert!(
