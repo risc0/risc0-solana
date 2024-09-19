@@ -189,16 +189,14 @@ fn to_fixed_array(input: &[u8]) -> [u8; 32] {
 }
 
 fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
-    for i in 0..32 {
-        let s_byte = scalar[i];
-        let q_byte = BASE_FIELD_MODULUS_Q[i];
-        if s_byte < q_byte {
-            return true; // scalar < q
-        } else if s_byte > q_byte {
-            return false; // scalar > q
+    for (s_byte, q_byte) in scalar.iter().zip(BASE_FIELD_MODULUS_Q.iter()) {
+        match s_byte.cmp(q_byte) {
+            std::cmp::Ordering::Less => return true,     // scalar < q
+            std::cmp::Ordering::Greater => return false, // scalar > q
+            std::cmp::Ordering::Equal => continue,       // check next
         }
     }
-    return false;
+    false // scalar == q
 }
 
 #[cfg(not(target_os = "solana"))]
@@ -801,21 +799,18 @@ mod test_lib {
 
     #[test]
     fn test_scalar_validity_check() {
-        let valid_scalar: [u8; 32] = [0u8; 32];
-        assert!(is_scalar_valid(&valid_scalar), "Scalar should be valid");
+        let valid_scalar = [0u8; 32];
+        assert!(is_scalar_valid(&valid_scalar), "Zero should be valid");
 
-        let scalar_equal_q = BASE_FIELD_MODULUS_Q;
-        assert!(
-            !is_scalar_valid(&scalar_equal_q),
-            "Scalar equal to q should be invalid"
-        );
+        let mut invalid_scalar = BASE_FIELD_MODULUS_Q;
+        assert!(!is_scalar_valid(&invalid_scalar), "q should be invalid");
 
-        let mut scalar_greater_q = BASE_FIELD_MODULUS_Q;
-        scalar_greater_q[31] += 1; // Increment last byte to make scalar > q
-        assert!(
-            !is_scalar_valid(&scalar_greater_q),
-            "Scalar greater than q should be invalid"
-        );
+        invalid_scalar[31] += 1;
+        assert!(!is_scalar_valid(&invalid_scalar), "q+1 should be invalid");
+
+        let mut below_q = BASE_FIELD_MODULUS_Q;
+        below_q[31] -= 1;
+        assert!(is_scalar_valid(&below_q), "q-1 should be valid");
     }
 
     #[test]

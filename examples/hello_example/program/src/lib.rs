@@ -208,7 +208,7 @@ fn verify(accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         pi_c: proof_c,
     };
 
-    let _ = verify_proof(&proof, &public_inputs, &VERIFYING_KEY).map_err(|e| {
+    verify_proof(&proof, &public_inputs, &VERIFYING_KEY).map_err(|e| {
         msg!("Proof verification failed: {:?}", e);
         VerifierProgramError::VerificationFailure
     })?;
