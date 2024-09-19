@@ -386,7 +386,7 @@ pub mod non_solana {
         }
     }
 
-    fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
+    pub(crate) fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
         if values.len() != 3 {
             return Err(anyhow!(
                 "Invalid G1 point: expected 3 values, got {}",
@@ -398,6 +398,16 @@ pub mod non_solana {
             .ok_or_else(|| anyhow!("Failed to parse G1 x coordinate"))?;
         let y = BigUint::parse_bytes(values[1].as_bytes(), 10)
             .ok_or_else(|| anyhow!("Failed to parse G1 y coordinate"))?;
+        let z = BigUint::parse_bytes(values[2].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G1 z coordinate"))?;
+
+        // check that z == 1
+        if z != BigUint::from(1u8) {
+            return Err(anyhow!(
+                "Invalid G1 point: Z coordinate is not 1 (found {})",
+                z
+            ));
+        }
 
         let mut result = [0u8; G1_LEN];
         let x_bytes = x.to_bytes_be();
@@ -409,7 +419,7 @@ pub mod non_solana {
         Ok(result)
     }
 
-    fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
+    pub(crate) fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
         if values.len() != 3 || values[0].len() != 2 || values[1].len() != 2 || values[2].len() != 2
         {
             return Err(anyhow!("Invalid G2 point structure"));
@@ -423,6 +433,20 @@ pub mod non_solana {
             .ok_or_else(|| anyhow!("Failed to parse G2 y.c0"))?;
         let y_c1 = BigUint::parse_bytes(values[1][1].as_bytes(), 10)
             .ok_or_else(|| anyhow!("Failed to parse G2 y.c1"))?;
+
+        // check z == [1, 0]
+        let z_c0 = BigUint::parse_bytes(values[2][0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c0"))?;
+        let z_c1 = BigUint::parse_bytes(values[2][1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c1"))?;
+
+        if z_c0 != BigUint::from(1u8) || z_c1 != BigUint::from(0u8) {
+            return Err(anyhow!(
+                "Invalid G2 point: Z coordinate is not [1, 0] (found [{}, {}])",
+                z_c0,
+                z_c1
+            ));
+        }
 
         let mut result = [0u8; G2_LEN];
         let x_c1_bytes = x_c1.to_bytes_be();
@@ -557,6 +581,46 @@ mod test_lib {
     }
 
     #[test]
+    fn test_convert_g1_invalid_z() {
+        let values = vec![
+            "1".to_string(), // x
+            "2".to_string(), // y
+            "0".to_string(), // z (invalid)
+        ];
+
+        let result = convert_g1(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G1 point: Z coordinate is not 1 (found 0)"
+        );
+    }
+
+    #[test]
+    fn test_convert_g2_invalid_z() {
+        let values = vec![
+            vec!["1".to_string(), "2".to_string()], // x
+            vec!["3".to_string(), "4".to_string()], // y
+            vec!["0".to_string(), "0".to_string()], // z (invalid)
+        ];
+
+        let result = convert_g2(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G2 point: Z coordinate is not [1, 0] (found [0, 0])"
+        );
+    }
+
+    #[test]
     fn test_import() {
         let vk = load_verification_key();
         println!("Verification Key: {:?}", vk);
@@ -570,6 +634,21 @@ mod test_lib {
         let reimported_vk: VerificationKey = serde_json::from_str(&exported_json).unwrap();
 
         assert_eq!(vk, reimported_vk, "Roundtrip serialization failed");
+    }
+
+    #[test]
+    fn test_verify_proof_with_invalid_vk_ic_length() {
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let mut vk = load_verification_key();
+
+        vk.vk_ic = &vk.vk_ic[..vk.vk_ic.len() - 1]; // Remove one element
+
+        let result = verify_proof(&proof, &public_inputs, &vk);
+
+        assert!(matches!(
+            result,
+            Err(ProgramError::Custom(code)) if code == Risc0SolanaError::InvalidPublicInput as u32
+        ));
     }
 
     #[test]
