@@ -14,23 +14,18 @@
 
 use borsh::BorshSerialize;
 use risc0_zkp::core::digest::Digest;
-use solana_program::alt_bn128::compression::prelude::{
-    alt_bn128_g1_decompress, alt_bn128_g2_decompress,
-};
 use solana_program::alt_bn128::prelude::{
     alt_bn128_addition, alt_bn128_multiplication, alt_bn128_pairing,
 };
 use solana_program::entrypoint::ProgramResult;
 use solana_program::program_error::ProgramError;
 
+#[derive(Debug)]
 pub enum Risc0SolanaError {
     G1CompressionError,
     G2CompressionError,
     VerificationError,
     InvalidPublicInput,
-    SerializationError,
-    DeserializationError,
-    InvalidInstructionData,
     ArithmeticError,
     PairingError,
 }
@@ -38,14 +33,21 @@ pub enum Risc0SolanaError {
 const G1_LEN: usize = 64;
 const G2_LEN: usize = 128;
 
-pub struct Verifier<'a, const N_PUBLIC: usize> {
-    proof: &'a Proof,
-    public: &'a PublicInputs<N_PUBLIC>,
-    vk: &'a VerificationKey<'a>,
-}
+// Base field modulus `q` for BN254
+// https://docs.rs/ark-bn254/latest/ark_bn254/
+pub(crate) const BASE_FIELD_MODULUS_Q: [u8; 32] = [
+    0x30, 0x64, 0x4E, 0x72, 0xE1, 0x31, 0xA0, 0x29, 0xB8, 0x50, 0x45, 0xB6, 0x81, 0x81, 0x58, 0x5D,
+    0x97, 0x81, 0x6A, 0x91, 0x68, 0x71, 0xCA, 0x8D, 0x3C, 0x20, 0x8C, 0x16, 0xD8, 0x7C, 0xFD, 0x47,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
+    // NOTE: `pi_a` is expected to be the **negated**
+    // version of the proof element.
+    //
+    // The pairing equation for Groth16 verification is:
+    //
+    // e(-pi_a, vk_beta_g2) * e(vk_alpha_g1, pi_b) * e(prepared_input, vk_gamma_g2) * e(pi_c, vk_delta_g2) == 1
     pub pi_a: [u8; 64],
     pub pi_b: [u8; 128],
     pub pi_c: [u8; 64],
@@ -66,70 +68,80 @@ pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
 }
 
-pub fn decompress_g1(g1_bytes: &[u8; 32]) -> Result<[u8; 64], Risc0SolanaError> {
-    alt_bn128_g1_decompress(g1_bytes).map_err(|_| Risc0SolanaError::G1CompressionError)
-}
-
-pub fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<[u8; 128], Risc0SolanaError> {
-    alt_bn128_g2_decompress(g2_bytes).map_err(|_| Risc0SolanaError::G2CompressionError)
-}
-
 impl From<Risc0SolanaError> for ProgramError {
     fn from(error: Risc0SolanaError) -> Self {
         ProgramError::Custom(error as u32)
     }
 }
 
-impl<'a, const N_PUBLIC: usize> Verifier<'a, N_PUBLIC> {
-    pub fn new(
-        proof: &'a Proof,
-        public: &'a PublicInputs<N_PUBLIC>,
-        vk: &'a VerificationKey<'a>,
-    ) -> Self {
-        Self { proof, public, vk }
+/// Verifies a Groth16 proof.
+///
+/// # Arguments
+///
+/// * `proof` - The proof to verify.
+/// * `public` - The public inputs to the proof.
+/// * `vk` - The verification key.
+///
+/// Note: The proof's `pi_a` element is expected to be the negated version of the proof element.
+/// Ensure that `pi_a` has been negated before calling this function.
+///
+/// # Returns
+///
+/// * `Ok(())` if the proof is valid.
+/// * `Err(ProgramError)` if the proof is invalid or an error occurs.
+pub fn verify_proof<const N_PUBLIC: usize>(
+    proof: &Proof,
+    public: &PublicInputs<N_PUBLIC>,
+    vk: &VerificationKey,
+) -> ProgramResult {
+    // Check vk_ic is the correct length
+    if vk.vk_ic.len() != N_PUBLIC + 1 {
+        return Err(Risc0SolanaError::InvalidPublicInput.into());
     }
-
-    pub fn verify(&self) -> ProgramResult {
-        let prepared_public = self.prepare_public_inputs()?;
-        self.perform_pairing(&prepared_public)
-    }
-
-    fn prepare_public_inputs(&self) -> Result<[u8; 64], Risc0SolanaError> {
-        let mut prepared = self.vk.vk_ic[0];
-        for (i, input) in self.public.inputs.iter().enumerate() {
-            let mul_res =
-                alt_bn128_multiplication(&[&self.vk.vk_ic[i + 1][..], &input[..]].concat())
-                    .map_err(|_| Risc0SolanaError::ArithmeticError)?;
-            prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
-                .unwrap()
-                .try_into()
-                .map_err(|_| Risc0SolanaError::ArithmeticError)?;
+    // Prepare public inputs
+    let mut prepared = vk.vk_ic[0];
+    for (i, input) in public.inputs.iter().enumerate() {
+        if !is_scalar_valid(input) {
+            return Err(Risc0SolanaError::InvalidPublicInput.into());
         }
-        Ok(prepared)
+        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
+            .map_err(|_| Risc0SolanaError::ArithmeticError)?;
+        prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
+            .unwrap()
+            .try_into()
+            .map_err(|_| Risc0SolanaError::ArithmeticError)?;
     }
 
-    fn perform_pairing(&self, prepared_public: &[u8; 64]) -> ProgramResult {
-        let pairing_input = [
-            self.proof.pi_a.as_slice(),
-            self.proof.pi_b.as_slice(),
-            prepared_public.as_slice(),
-            self.vk.vk_gamma_g2.as_slice(),
-            self.proof.pi_c.as_slice(),
-            self.vk.vk_delta_g2.as_slice(),
-            self.vk.vk_alpha_g1.as_slice(),
-            self.vk.vk_beta_g2.as_slice(),
-        ]
-        .concat();
+    // Perform pairing check
+    let pairing_input = [
+        proof.pi_a.as_slice(),
+        proof.pi_b.as_slice(),
+        prepared.as_slice(),
+        vk.vk_gamma_g2.as_slice(),
+        proof.pi_c.as_slice(),
+        vk.vk_delta_g2.as_slice(),
+        vk.vk_alpha_g1.as_slice(),
+        vk.vk_beta_g2.as_slice(),
+    ]
+    .concat();
 
-        let pairing_res =
-            alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
+    //  Use the Solana alt_bn128_pairing syscall.
+    //
+    //  The `alt_bn128_pairing` function does not return the actual pairing result.
+    //  Instead, it returns a 32-byte big-endian integer:
+    //   - If the pairing check passes, it returns 1 represented as a 32-byte big-endian integer (`[0u8; 31] + [1u8]`).
+    //   - If the pairing check fails, it returns 0 represented as a 32-byte big-endian integer (`[0u8; 32]`).
+    let pairing_res =
+        alt_bn128_pairing(&pairing_input).map_err(|_| Risc0SolanaError::PairingError)?;
 
-        if pairing_res[31] != 1 {
-            return Err(Risc0SolanaError::VerificationError.into());
-        }
+    let mut expected = [0u8; 32];
+    expected[31] = 1;
 
-        Ok(())
+    if pairing_res != expected {
+        return Err(Risc0SolanaError::VerificationError.into());
     }
+
+    Ok(())
 }
 
 pub fn public_inputs(
@@ -176,8 +188,19 @@ fn to_fixed_array(input: &[u8]) -> [u8; 32] {
     fixed_array
 }
 
+fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
+    for (s_byte, q_byte) in scalar.iter().zip(BASE_FIELD_MODULUS_Q.iter()) {
+        match s_byte.cmp(q_byte) {
+            std::cmp::Ordering::Less => return true,     // scalar < q
+            std::cmp::Ordering::Greater => return false, // scalar > q
+            std::cmp::Ordering::Equal => continue,       // check next
+        }
+    }
+    false // scalar == q
+}
+
 #[cfg(not(target_os = "solana"))]
-pub mod non_solana {
+pub mod client {
 
     use super::*;
     use {
@@ -191,11 +214,6 @@ pub mod non_solana {
 
     type G1 = ark_bn254::g1::G1Affine;
     type G2 = ark_bn254::g2::G2Affine;
-
-    // Base field: q = 21888242871839275222246405745257275088696311157297823662689037894645226208583
-    // https://docs.rs/ark-bn254/latest/ark_bn254/
-    const BASE_FIELD_MODULUS: &str =
-        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct ProofJson {
@@ -383,7 +401,8 @@ pub mod non_solana {
             bytes
         }
     }
-    fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
+
+    pub(crate) fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
         if values.len() != 3 {
             return Err(anyhow!(
                 "Invalid G1 point: expected 3 values, got {}",
@@ -395,6 +414,16 @@ pub mod non_solana {
             .ok_or_else(|| anyhow!("Failed to parse G1 x coordinate"))?;
         let y = BigUint::parse_bytes(values[1].as_bytes(), 10)
             .ok_or_else(|| anyhow!("Failed to parse G1 y coordinate"))?;
+        let z = BigUint::parse_bytes(values[2].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G1 z coordinate"))?;
+
+        // check that z == 1
+        if z != BigUint::from(1u8) {
+            return Err(anyhow!(
+                "Invalid G1 point: Z coordinate is not 1 (found {})",
+                z
+            ));
+        }
 
         let mut result = [0u8; G1_LEN];
         let x_bytes = x.to_bytes_be();
@@ -406,7 +435,7 @@ pub mod non_solana {
         Ok(result)
     }
 
-    fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
+    pub(crate) fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
         if values.len() != 3 || values[0].len() != 2 || values[1].len() != 2 || values[2].len() != 2
         {
             return Err(anyhow!("Invalid G2 point structure"));
@@ -420,6 +449,20 @@ pub mod non_solana {
             .ok_or_else(|| anyhow!("Failed to parse G2 y.c0"))?;
         let y_c1 = BigUint::parse_bytes(values[1][1].as_bytes(), 10)
             .ok_or_else(|| anyhow!("Failed to parse G2 y.c1"))?;
+
+        // check z == [1, 0]
+        let z_c0 = BigUint::parse_bytes(values[2][0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c0"))?;
+        let z_c1 = BigUint::parse_bytes(values[2][1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c1"))?;
+
+        if z_c0 != BigUint::from(1u8) || z_c1 != BigUint::from(0u8) {
+            return Err(anyhow!(
+                "Invalid G2 point: Z coordinate is not [1, 0] (found [{}, {}])",
+                z_c0,
+                z_c1
+            ));
+        }
 
         let mut result = [0u8; G2_LEN];
         let x_c1_bytes = x_c1.to_bytes_be();
@@ -489,11 +532,12 @@ pub mod non_solana {
         let y = &point[32..];
 
         let mut y_big = BigUint::from_bytes_be(y);
+        let field_modulus = BigUint::from_bytes_be(&BASE_FIELD_MODULUS_Q);
 
-        let field_modulus = BigUint::parse_bytes(BASE_FIELD_MODULUS.as_bytes(), 10)
-            .ok_or_else(|| anyhow!("Failed to parse field modulus"))?;
+        // Negate the y-coordinate to get -g1.
         y_big = field_modulus - y_big;
 
+        // Reconstruct the point with the negated y-coordinate
         let mut result = [0u8; 64];
         result[..32].copy_from_slice(x);
         let y_bytes = y_big.to_bytes_be();
@@ -505,7 +549,7 @@ pub mod non_solana {
 
 #[cfg(test)]
 mod test_lib {
-    use super::non_solana::*;
+    use super::client::*;
     use super::*;
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
@@ -517,6 +561,11 @@ mod test_lib {
         "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
     const BN254_IDENTITY_CONTROL_ID: &str =
         "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+
+    // Reference base field modulus for BN254
+    // https://docs.rs/ark-bn254/latest/ark_bn254/
+    const REF_BASE_FIELD_MODULUS: &str =
+        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
 
     fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
@@ -554,6 +603,46 @@ mod test_lib {
     }
 
     #[test]
+    fn test_convert_g1_invalid_z() {
+        let values = vec![
+            "1".to_string(), // x
+            "2".to_string(), // y
+            "0".to_string(), // z (invalid)
+        ];
+
+        let result = convert_g1(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G1 point: Z coordinate is not 1 (found 0)"
+        );
+    }
+
+    #[test]
+    fn test_convert_g2_invalid_z() {
+        let values = vec![
+            vec!["1".to_string(), "2".to_string()], // x
+            vec!["3".to_string(), "4".to_string()], // y
+            vec!["0".to_string(), "0".to_string()], // z (invalid)
+        ];
+
+        let result = convert_g2(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G2 point: Z coordinate is not [1, 0] (found [0, 0])"
+        );
+    }
+
+    #[test]
     fn test_import() {
         let vk = load_verification_key();
         println!("Verification Key: {:?}", vk);
@@ -567,6 +656,21 @@ mod test_lib {
         let reimported_vk: VerificationKey = serde_json::from_str(&exported_json).unwrap();
 
         assert_eq!(vk, reimported_vk, "Roundtrip serialization failed");
+    }
+
+    #[test]
+    fn test_verify_proof_with_invalid_vk_ic_length() {
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let mut vk = load_verification_key();
+
+        vk.vk_ic = &vk.vk_ic[..vk.vk_ic.len() - 1]; // Remove one element
+
+        let result = verify_proof(&proof, &public_inputs, &vk);
+
+        assert!(matches!(
+            result,
+            Err(ProgramError::Custom(code)) if code == Risc0SolanaError::InvalidPublicInput as u32
+        ));
     }
 
     #[test]
@@ -609,10 +713,8 @@ mod test_lib {
     pub fn test_verify() {
         let (_, proof, public_inputs) = load_receipt_and_extract_data();
         let vk = load_verification_key();
-
-        let verifier: Verifier<5> = Verifier::new(&proof, &public_inputs, &vk);
-
-        assert!(verifier.verify().is_ok(), "Verification failed");
+        let res = verify_proof(&proof, &public_inputs, &vk);
+        assert!(res.is_ok(), "Verification failed");
     }
 
     #[test]
@@ -665,5 +767,69 @@ mod test_lib {
             .digest()
             .try_into()
             .unwrap()
+    }
+
+    #[test]
+    fn test_verify_proof_vk_ic_length() {
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let vk = load_verification_key();
+
+        let result = verify_proof(&proof, &public_inputs, &vk);
+        assert!(
+            result.is_ok(),
+            "Verification should pass with correct vk_ic length"
+        );
+
+        let incorrect_vk_ic: Vec<[u8; G1_LEN]> = vk.vk_ic[..vk.vk_ic.len() - 1].to_vec();
+        let incorrect_vk_ic_box = Box::new(incorrect_vk_ic);
+        let incorrect_vk_ic_ref: &'static [[u8; G1_LEN]] = Box::leak(incorrect_vk_ic_box);
+
+        let mut incorrect_vk = vk.clone();
+        incorrect_vk.vk_ic = incorrect_vk_ic_ref;
+
+        let result = verify_proof(&proof, &public_inputs, &incorrect_vk);
+        assert!(
+            matches!(
+                result,
+                Err(ProgramError::Custom(code)) if code == Risc0SolanaError::InvalidPublicInput as u32
+            ),
+            "Verification should fail with incorrect vk_ic length"
+        );
+    }
+
+    #[test]
+    fn test_scalar_validity_check() {
+        let valid_scalar = [0u8; 32];
+        assert!(is_scalar_valid(&valid_scalar), "Zero should be valid");
+
+        let mut invalid_scalar = BASE_FIELD_MODULUS_Q;
+        assert!(!is_scalar_valid(&invalid_scalar), "q should be invalid");
+
+        invalid_scalar[31] += 1;
+        assert!(!is_scalar_valid(&invalid_scalar), "q+1 should be invalid");
+
+        let mut below_q = BASE_FIELD_MODULUS_Q;
+        below_q[31] -= 1;
+        assert!(is_scalar_valid(&below_q), "q-1 should be valid");
+    }
+
+    #[test]
+    fn test_base_field_modulus_against_reference() {
+        use num_bigint::BigUint;
+
+        let ref_base_field_modulus = BigUint::parse_bytes(REF_BASE_FIELD_MODULUS.as_bytes(), 10)
+            .expect("Failed to parse BASE_FIELD_MODULUS");
+
+        let ref_base_field_modulus_hex = format!("{:X}", ref_base_field_modulus);
+
+        let field_modulus_q_hex: String = BASE_FIELD_MODULUS_Q
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect();
+
+        assert_eq!(
+            field_modulus_q_hex, ref_base_field_modulus_hex,
+            "FIELD_MODULUS_Q does not match reference REF_BASE_FIELD_MODULUS"
+        );
     }
 }
