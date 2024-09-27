@@ -556,11 +556,11 @@ mod test_lib {
     use std::fs::File;
     use std::io::Write;
 
-    // From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
+    // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
     const ALLOWED_CONTROL_ROOT: &str =
-        "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
     const BN254_IDENTITY_CONTROL_ID: &str =
-        "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
 
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
