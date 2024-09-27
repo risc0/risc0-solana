@@ -30,14 +30,15 @@ enum VerifierProgramError {
     VerificationFailure,
 }
 
-// From: https://github.com/risc0/risc0/blob/55b45e8d11d80a1711441051929ec15294cd61c1/risc0/circuit/recursion/src/control_id.rs#L49
+// From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
 const ALLOWED_CONTROL_ROOT: &str =
-    "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+    "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
 const BN254_IDENTITY_CONTROL_ID: &str =
-    "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+    "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
 
+// From risc0-ethereum: https://github.com/risc0/risc0-ethereum/blob/main/contracts/src/groth16/Groth16Verifier.sol
 const VERIFYING_KEY: VerificationKey = VerificationKey {
-    nr_pubinputs: 81,
+    nr_pubinputs: 5,
     vk_alpha_g1: [
         45, 77, 154, 167, 227, 2, 217, 223, 65, 116, 157, 85, 7, 148, 157, 5, 219, 234, 51, 251,
         177, 108, 100, 59, 34, 245, 153, 162, 190, 109, 242, 226, 20, 190, 221, 80, 60, 55, 206,
@@ -230,9 +231,9 @@ mod tests {
 
     // Constants for test data
     const ALLOWED_CONTROL_ROOT: &str =
-        "a516a057c9fbf5629106300934d48e0e775d4230e41e503347cad96fcbde7e2e";
+        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
     const BN254_IDENTITY_CONTROL_ID: &str =
-        "51b54a62f2aa599aef768744c95de8c7d89bf716e11b1179f05d6cf0bcfeb60e";
+        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
 
     fn load_receipt_and_extract_data() -> (Proof, PublicInputs<5>) {
         let receipt_json_str = include_bytes!("../../../../test/data/receipt.json");
