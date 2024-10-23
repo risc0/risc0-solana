@@ -57,7 +57,7 @@ The library includes client-side utilities for working with proofs and verificat
 
 ## Testing
 
-The library includes a non-exhuastive test suite. Run the tests using:
+The library includes a non-exhaustive test suite. Run the tests using:
 
 ```
 cargo test
