@@ -1,0 +1,924 @@
+{
+  "address": "FqTL9adUEYsYFutDPU8rYsn1jXRF8SiVQGjKZbuQ9Sw2",
+  "metadata": {
+    "name": "verifier_router",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "accept_ownership",
+      "discriminator": [
+        172,
+        23,
+        43,
+        13,
+        238,
+        213,
+        85,
+        150
+      ],
+      "accounts": [
+        {
+          "name": "state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "add_verifier",
+      "discriminator": [
+        165,
+        72,
+        135,
+        225,
+        67,
+        181,
+        255,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  114,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "selector"
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_program",
+          "address": "HK1z9NG1jsnMYD66bKMLbiLy6xQnLYuLfqqkGSkwYvy8"
+        },
+        {
+          "name": "verifier_program_data"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "selector",
+          "type": "u32"
+        },
+        {
+          "name": "verifier",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "cancel_transfer",
+      "discriminator": [
+        50,
+        32,
+        70,
+        130,
+        142,
+        41,
+        111,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "emergency_stop",
+      "discriminator": [
+        179,
+        143,
+        200,
+        137,
+        108,
+        245,
+        248,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "docs": [
+            "The router account containing ownership and verifier registry"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_entry",
+          "docs": [
+            "The verifier entry to be closed"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  114,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "selector"
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier",
+          "docs": [
+            "The verifier program to be closed",
+            "We verify this account is a BPF upgradeable loader program and matches our verifier entry"
+          ],
+          "writable": true
+        },
+        {
+          "name": "verifier_program",
+          "address": "HK1z9NG1jsnMYD66bKMLbiLy6xQnLYuLfqqkGSkwYvy8"
+        },
+        {
+          "name": "bpf_loader_upgradable_program"
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "The authority attempting the emergency stop"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "selector",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "emergency_stop_with_proof",
+      "discriminator": [
+        54,
+        84,
+        135,
+        9,
+        249,
+        7,
+        161,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "docs": [
+            "The router account containing ownership and verifier registry"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_entry",
+          "docs": [
+            "The verifier entry to be closed"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  114,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "selector"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "The authority attempting the emergency stop"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "verifier_program",
+          "docs": [
+            "The program account of the verifier to be used",
+            "Address is verified against VerifierEntry"
+          ],
+          "address": "HK1z9NG1jsnMYD66bKMLbiLy6xQnLYuLfqqkGSkwYvy8"
+        },
+        {
+          "name": "bpf_loader_upgradable_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "selector",
+          "type": "u32"
+        },
+        {
+          "name": "proof",
+          "type": {
+            "defined": {
+              "name": "Proof"
+            }
+          }
+        },
+        {
+          "name": "image_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "journal_digest",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "vk",
+          "type": {
+            "defined": {
+              "name": "VerificationKey"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "docs": [
+            "The router account to be initialized",
+            "Space allocated for discriminator + owner + option<pending_owner> + count"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "The authority initializing and paying for the router"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "Required for account initialization"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "renounce_ownership",
+      "discriminator": [
+        19,
+        143,
+        91,
+        79,
+        34,
+        168,
+        174,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_ownership",
+      "discriminator": [
+        65,
+        177,
+        215,
+        73,
+        53,
+        45,
+        99,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "state",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_owner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "verify",
+      "discriminator": [
+        133,
+        161,
+        141,
+        48,
+        120,
+        198,
+        88,
+        150
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "docs": [
+            "The router account containing the verifier registry"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_entry",
+          "docs": [
+            "The verifier entry to use, validated using PDA derivation",
+            "Seeds are [\"verifier\", router_pubkey, selector_bytes]"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  114,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "selector"
+              }
+            ]
+          }
+        },
+        {
+          "name": "verifier_program",
+          "docs": [
+            "The program account of the verifier to be used",
+            "Address is verified against VerifierEntry"
+          ],
+          "address": "HK1z9NG1jsnMYD66bKMLbiLy6xQnLYuLfqqkGSkwYvy8"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof",
+          "type": {
+            "defined": {
+              "name": "Proof"
+            }
+          }
+        },
+        {
+          "name": "image_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "journal_digest",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "vk",
+          "type": {
+            "defined": {
+              "name": "VerificationKey"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "VerifierEntry",
+      "discriminator": [
+        102,
+        247,
+        148,
+        158,
+        33,
+        153,
+        100,
+        93
+      ]
+    },
+    {
+      "name": "VerifierRouter",
+      "discriminator": [
+        188,
+        46,
+        30,
+        54,
+        25,
+        63,
+        197,
+        26
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "EmergencyStopEvent",
+      "discriminator": [
+        44,
+        170,
+        247,
+        63,
+        91,
+        138,
+        146,
+        110
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "VerifierInvalidAuthority",
+      "msg": "Attempted to add a verifier contract that the router contract does not own and thus cannot delete"
+    },
+    {
+      "code": 6001,
+      "name": "VerifierInvalidLoader",
+      "msg": "Attempted to add a verifier contract that cannot be deleted to the router"
+    },
+    {
+      "code": 6002,
+      "name": "SelectorInUse",
+      "msg": "Selector is already registered"
+    },
+    {
+      "code": 6003,
+      "name": "SelectorNotFound",
+      "msg": "Selector not found"
+    },
+    {
+      "code": 6004,
+      "name": "SelectorDeactivated",
+      "msg": "Selector has been deactivated"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidVerifier",
+      "msg": "Invalid verifier program"
+    },
+    {
+      "code": 6006,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "EmergencyStopEvent",
+      "docs": [
+        "Event emitted when an emergency stop is executed on a verifier",
+        "",
+        "# Fields",
+        "* `router` - The public key of the router account managing the verifier",
+        "* `selector` - A u32 that uniquely identifies the verifier entry in the router",
+        "* `verifier` - The public key of the verifier program being emergency stopped",
+        "* `triggered_by` - The public key of the account that initiated the emergency stop",
+        "* `reason` - A string explaining why the emergency stop was triggered"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "selector",
+            "type": "u32"
+          },
+          {
+            "name": "verifier",
+            "type": "pubkey"
+          },
+          {
+            "name": "triggered_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ownership",
+      "docs": [
+        "This structure tracks both the current owner and any pending ownership transfers.",
+        "It's designed to be embedded within Anchor accounts that need ownership functionality.",
+        "This structure is 66 bytes in size.",
+        "",
+        "# Example",
+        "```rust",
+        "#[account]",
+        "#[derive(Ownable)]",
+        "pub struct TestState {",
+        "pub ownership: Ownership,",
+        "pub data: u64,",
+        "}",
+        "```"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "The current owner's public key"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "pending_owner",
+            "docs": [
+              "The public key of the pending owner during a transfer, if any"
+            ],
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Proof",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pi_a",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "pi_b",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "pi_c",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nr_pubinputs",
+            "type": "u32"
+          },
+          {
+            "name": "vk_alpha_g1",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "vk_beta_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_gamma_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_delta_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_ic",
+            "type": {
+              "vec": {
+                "array": [
+                  "u8",
+                  64
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerifierEntry",
+      "docs": [
+        "Account storing information about a registered verifier",
+        "",
+        "# Fields",
+        "* `router` - Public key of the router this entry belongs to",
+        "* `selector` - Unique identifier for this verifier entry",
+        "* `verifier` - Public key of the verifier program",
+        "* `is_active` - Boolean flag indicating if this verifier is currently active"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "selector",
+            "type": "u32"
+          },
+          {
+            "name": "verifier",
+            "type": "pubkey"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerifierRouter",
+      "docs": [
+        "Main router account storing ownership and verifier count",
+        "",
+        "# Fields",
+        "* `ownership` - Stores the current and pending owner information",
+        "* `verifier_count` - Total number of verifiers registered in the router"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ownership",
+            "type": {
+              "defined": {
+                "name": "Ownership"
+              }
+            }
+          },
+          {
+            "name": "verifier_count",
+            "type": "u32"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,194 @@
+{
+  "address": "HK1z9NG1jsnMYD66bKMLbiLy6xQnLYuLfqqkGSkwYvy8",
+  "metadata": {
+    "name": "groth_16_verifier",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "verify",
+      "discriminator": [
+        133,
+        161,
+        141,
+        48,
+        120,
+        198,
+        88,
+        150
+      ],
+      "accounts": [
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof",
+          "type": {
+            "defined": {
+              "name": "Proof"
+            }
+          }
+        },
+        {
+          "name": "image_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "journal_digest",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "vk",
+          "type": {
+            "defined": {
+              "name": "VerificationKey"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "G1CompressionError",
+      "msg": "G1 compression error"
+    },
+    {
+      "code": 6001,
+      "name": "G2CompressionError",
+      "msg": "G2 compression error"
+    },
+    {
+      "code": 6002,
+      "name": "VerificationError",
+      "msg": "Verification error"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidPublicInput",
+      "msg": "Invalid public input"
+    },
+    {
+      "code": 6004,
+      "name": "ArithmeticError",
+      "msg": "Arithmetic error"
+    },
+    {
+      "code": 6005,
+      "name": "PairingError",
+      "msg": "Pairing error"
+    }
+  ],
+  "types": [
+    {
+      "name": "Proof",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pi_a",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "pi_b",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "pi_c",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nr_pubinputs",
+            "type": "u32"
+          },
+          {
+            "name": "vk_alpha_g1",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "vk_beta_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_gamma_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_delta_g2",
+            "type": {
+              "array": [
+                "u8",
+                128
+              ]
+            }
+          },
+          {
+            "name": "vk_ic",
+            "type": {
+              "vec": {
+                "array": [
+                  "u8",
+                  64
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

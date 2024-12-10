@@ -1,0 +1,318 @@
+{
+  "version": "0.0.0",
+  "name": "solana_loader_v3_program",
+  "instructions": [
+    {
+      "name": "InitializeBuffer",
+      "accounts": [
+        {
+          "name": "sourceAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Source account to initialize."]
+        },
+        {
+          "name": "bufferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Buffer authority."]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u32",
+        "value": 0
+      }
+    },
+    {
+      "name": "Write",
+      "accounts": [
+        {
+          "name": "bufferAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Buffer account."]
+        },
+        {
+          "name": "bufferAuthority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Buffer authority."]
+        }
+      ],
+      "args": [
+        {
+          "name": "offset",
+          "type": "u32"
+        },
+        {
+          "name": "bytes",
+          "type": "bytes"
+        }
+      ],
+      "discriminant": {
+        "type": "u32",
+        "value": 1
+      }
+    },
+    {
+      "name": "DeployWithMaxDataLen",
+      "accounts": [
+        {
+          "name": "payerAccount",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Payer account that will pay to create the ProgramData account."
+          ]
+        },
+        {
+          "name": "programDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["ProgramData account (uninitialized)."]
+        },
+        {
+          "name": "programAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Program account (uninitialized)."]
+        },
+        {
+          "name": "bufferAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Buffer account where the program data has been written."]
+        },
+        {
+          "name": "rentSysvar",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Rent sysvar."]
+        },
+        {
+          "name": "clockSysvar",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Clock sysvar."]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["System program."]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Authority."]
+        }
+      ],
+      "args": [
+        {
+          "name": "maxDataLen",
+          "type": "u64"
+        }
+      ],
+      "discriminant": {
+        "type": "u32",
+        "value": 2
+      }
+    },
+    {
+      "name": "Upgrade",
+      "accounts": [
+        {
+          "name": "programDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["ProgramData account."]
+        },
+        {
+          "name": "programAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Program account."]
+        },
+        {
+          "name": "bufferAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Buffer account where the new program data has been written."
+          ]
+        },
+        {
+          "name": "spillAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Spill account."]
+        },
+        {
+          "name": "rentSysvar",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Rent sysvar."]
+        },
+        {
+          "name": "clockSysvar",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Clock sysvar."]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Authority."]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u32",
+        "value": 3
+      }
+    },
+    {
+      "name": "SetAuthority",
+      "accounts": [
+        {
+          "name": "bufferOrProgramDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Buffer or ProgramData account."]
+        },
+        {
+          "name": "currentAuthority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Current authority."]
+        },
+        {
+          "name": "newAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": ["New authority (optional)."]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u32",
+        "value": 4
+      }
+    },
+    {
+      "name": "Close",
+      "accounts": [
+        {
+          "name": "bufferOrProgramDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Buffer or ProgramData account to close."]
+        },
+        {
+          "name": "destinationAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Destination account for reclaimed lamports."]
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true,
+          "isOptional": true,
+          "docs": ["Authority (optional)."]
+        },
+        {
+          "name": "programAccount",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": ["Program account (optional)."]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u32",
+        "value": 5
+      }
+    },
+    {
+      "name": "ExtendProgram",
+      "accounts": [
+        {
+          "name": "programDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["ProgramData account."]
+        },
+        {
+          "name": "programAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Program account."]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "isOptional": true,
+          "docs": ["System program (optional)."]
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "isOptional": true,
+          "docs": ["Payer."]
+        }
+      ],
+      "args": [
+        {
+          "name": "additionalBytes",
+          "type": "u32"
+        }
+      ],
+      "discriminant": {
+        "type": "u32",
+        "value": 6
+      }
+    },
+    {
+      "name": "SetAuthorityChecked",
+      "accounts": [
+        {
+          "name": "bufferOrProgramDataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": ["Buffer or ProgramData account to change the authority of."]
+        },
+        {
+          "name": "currentAuthority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Current authority."]
+        },
+        {
+          "name": "newAuthority",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["New authority."]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u32",
+        "value": 7
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "binaryVersion": "0.4.2",
+    "libVersion": "^0.4.2"
+  }
+}
