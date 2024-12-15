@@ -3,7 +3,8 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "client": "ts-node scripts/codma.ts"
+    "client": "ts-node -P ./tsconfig.json scripts/codma.ts",
+    "deploy": "ts-node -P ./tsconfig.json scripts/deploy.ts"
   },
   "dependencies": {
     "@codama/nodes-from-anchor": "^1.0.1",
@@ -15,7 +16,9 @@
     "chai-as-promised": "^7.1.2",
     "codama": "^1.1.0",
     "deep-equal-in-any-order": "^2.0.6",
-    "solana-bankrun": "^0.4.0"
+    "dotenv": "^16.4.7",
+    "solana-bankrun": "^0.4.0",
+    "tslog": "^4.9.3"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",

@@ -10,7 +10,7 @@ use estop::*;
 use router::*;
 use state::*;
 
-declare_id!("2NXuy9QcqgMMckYW7Jhb6Uxyyqb4PLqniwqowt2bwagK");
+declare_id!("DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa");
 #[program]
 pub mod verifier_router {
     use ownable::OwnableError;

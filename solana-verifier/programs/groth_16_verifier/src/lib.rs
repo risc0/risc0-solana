@@ -13,7 +13,7 @@ pub use vk::{VerificationKey, VERIFICATION_KEY};
 
 use error::*;
 
-declare_id!("BLRqPevHoJRbwNzB76PqmKURr2foFCrCVaMLtctMq5hH");
+declare_id!("Hs9zHQshowrEM4tyRCv9vwcPkZSBbU1cVCUGLwZmVawa");
 
 const ALLOWED_CONTROL_ROOT: &str =
     "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";

@@ -5,9 +5,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-groth_16_verifier = "BLRqPevHoJRbwNzB76PqmKURr2foFCrCVaMLtctMq5hH"
-test_bad_verifier = "Ax2RSfhDcVo8wx8H9tEmqgHb69sGv9HHK1yueVmMK9bP"
-verifier_router = "2NXuy9QcqgMMckYW7Jhb6Uxyyqb4PLqniwqowt2bwagK"
+groth_16_verifier = "Hs9zHQshowrEM4tyRCv9vwcPkZSBbU1cVCUGLwZmVawa"
+test_bad_verifier = "AdneDeXEyPk72VfLQMrQBTjuQj2fuBXm9efJdcB7eE3r"
+verifier_router = "DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,7 +17,8 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-client = "yarn run ts-node scripts/codma.ts"
+client = "yarn run ts-node -P ./tsconfig.json scripts/codma.ts"
+deploy = "yarn run ts-node -P ./tsconfig.json scripts/deploy.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]
