@@ -34,6 +34,8 @@ async function runRenounceOwnership() {
   const owner = await getTransactionSigner();
   const routerAddress = getRouterAddress();
 
+  await ConfirmOperation();
+
   await renounceOwnership(rpc.rpc, rpc.rpc_subscription, routerAddress, owner);
 
   logger.info("Verifier Router Renounce Ownership Script Completed");

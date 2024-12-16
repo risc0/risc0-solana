@@ -57,7 +57,7 @@ export async function estopByOwner(
     {
       authority: owner,
       bpfLoaderUpgradableProgram: SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-      router: routerAddress,
+      router: routerPda.address,
       selector,
       verifierEntry: verifierEntryPda.address,
       verifierProgram: verifierAddress,

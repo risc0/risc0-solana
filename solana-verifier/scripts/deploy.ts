@@ -25,18 +25,18 @@ async function run_deployment(): Promise<void> {
   // Build and deploy the Solana programs on chain
   logger.info("Attempting to sync keys and build programs for deployment");
 
-  if (verify) {
+  if (!verify) {
     logger.warn("Build is not going to be verifiable");
   }
   await build_cli();
   logger.info("Build of Solana programs was successful");
 
-  const router_address = await deploy_cli(
+  const routerAddress = await deploy_cli(
     Programs.VerifierRouter,
     verify,
     false // Router should not be upgradable
   );
-  logger.info(`Verifier Router Program Address will be: ${router_address}`);
+  logger.info(`Verifier Router Program Address will be: ${routerAddress}`);
 
   const verifier_address = await deploy_cli(
     Programs.Groth16Verifier,
@@ -51,17 +51,16 @@ async function run_deployment(): Promise<void> {
   logger.info("Programs succesfully deployed");
 
   // Initilize the Router by setting owner for the contract and creating the PDA
-  await initilizeRouter(rpc.rpc, rpc.rpc_subscription, router_address, owner);
+  await initilizeRouter(rpc.rpc, rpc.rpc_subscription, routerAddress, owner);
 
   // Setup the Groth 16 Verifiers Upgrade authority to be the Router PDA
-  const routerPda = await getRouterPda(router_address);
-  const routerAddress = routerPda[0];
+  const routerPda = await getRouterPda(routerAddress);
   await changeAuthority(
     rpc.rpc,
     rpc.rpc_subscription,
-    router_address,
+    verifier_address,
     deployer,
-    routerAddress
+    routerPda.address
   );
 
   // Add the Groth 16 Verifier to the Router

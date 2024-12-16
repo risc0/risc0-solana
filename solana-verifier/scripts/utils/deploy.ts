@@ -52,7 +52,7 @@ export async function deploy_cli(
     command.push("");
   }
 
-  command.push("-- output json");
+  command.push("-- --output json");
 
   if (!upgradable) {
     command.push("--final");

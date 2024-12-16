@@ -69,7 +69,7 @@ export async function addVerifier(
   const addVerifierInstruction = getAddVerifierInstruction(
     {
       authority: owner,
-      router: routerAddress,
+      router: routerPDA.address,
       selector,
       verifierEntry: routerEntry.address,
       verifierProgram: verifierAddress,

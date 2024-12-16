@@ -137,7 +137,7 @@ export async function renounceOwnership(
 ) {
   logger.warn("RENOUNCE OWNERSHIP HAS BEEN CALLED, THIS IS IRREVERSABLE...");
   logger.warn(
-    "Was renounced no new verifier may be added to the router, and Emergency Stop can only be called by producing a verifiably bad proof."
+    "Once renounced no new verifier may be added to the router, and Emergency Stop can only be called by producing a verifiably bad proof."
   );
   logger.warn(
     "Program will sleep for 5 seconds. Kill program if you wish to stop NOW."
