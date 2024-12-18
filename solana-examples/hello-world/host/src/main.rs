@@ -28,18 +28,7 @@ use tokio::time::Sleep;
 use tracing::instrument::WithSubscriber;
 use tracing::{debug, error, info, trace};
 
-use clap::Parser;
 use solana_examples::{accounts, instruction, ProgramData};
-
-// Provide CLI so that we can use the same program to setup our program as well
-// as increment our nonce
-#[derive(Parser, Debug)]
-#[command(version)]
-struct Args {
-    /// Initilize the Example Solana Program instead of incrementing the nonce
-    #[arg(short, long, default_value_t = false)]
-    init: bool,
-}
 
 type PROGRAM = Program<Arc<Keypair>>;
 
@@ -51,12 +40,10 @@ fn convert_array(input: [u32; 8]) -> [u8; 32] {
     bytes.try_into().unwrap()
 }
 
-async fn init(user: Arc<Keypair>, example_program: PROGRAM, program_data_address: Pubkey) {
+async fn init(user: Arc<Keypair>, example_program: &PROGRAM, program_data_address: Pubkey) {
     info!("Attempting to initilize program data");
 
     let rpc = example_program.async_rpc();
-
-    let slot = rpc.get_slot().await.unwrap();
 
     example_program
         .request()
@@ -75,7 +62,7 @@ async fn init(user: Arc<Keypair>, example_program: PROGRAM, program_data_address
         .await
         .expect("Was unable to submit the initilization transaction");
 
-    info!("Transaction Successful, our program is now ready for verifying proofs");
+    info!("Transaction Successful, our program is initialized and now ready for verifying proofs");
 }
 
 async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey) {
@@ -88,7 +75,7 @@ async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey)
 
     let nonce: u32 = program_data.nonce;
 
-    info!("Current Nonce value is ${nonce}");
+    info!("Current Nonce value is {nonce}");
 
     // Increment the current nonce for our transaction to be accepted
     let input: u32 = nonce + 1;
@@ -160,7 +147,6 @@ async fn main() {
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
 
-    let args = Args::parse();
     info!("Example Risc0 Solana Program has started!");
 
     // Construct a new user and request solana for the transaction
@@ -217,9 +203,12 @@ async fn main() {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 
-    if args.init {
-        init(user, example_program, program_data_address).await
-    } else {
-        increment_nonce(example_program, program_data_address).await
+    // Check if the contract has been initilized yet
+    let program_data: Result<ProgramData, _> = example_program.account(program_data_address).await;
+
+    if program_data.is_err() {
+        info!("Could not find program data account, could be first run, initilizing program!");
+        init(user, &example_program, program_data_address).await;
     }
+    increment_nonce(example_program, program_data_address).await
 }

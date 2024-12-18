@@ -4,14 +4,13 @@ use anchor_lang::solana_program::alt_bn128::prelude::{
 };
 use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::system_program;
+use error::VerifierError;
 use risc0_zkp::core::digest::Digest;
 
 mod error;
 mod vk;
 
 pub use vk::{VerificationKey, VERIFICATION_KEY};
-
-use error::*;
 
 declare_id!("Hs9zHQshowrEM4tyRCv9vwcPkZSBbU1cVCUGLwZmVawa");
 
@@ -91,8 +90,8 @@ pub struct Proof {
 // TODO: Was converted into Vec because of time constrain, Anchor really not
 // liking generic constants
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
-pub struct PublicInputs {
-    pub inputs: Vec<[u8; 32]>,
+pub struct PublicInputs<const N: usize> {
+    pub inputs: [[u8; 32]; N],
 }
 
 /// Verifies a Groth16 proof.
@@ -110,17 +109,20 @@ pub struct PublicInputs {
 ///
 /// * `Ok(())` if the proof is valid.
 /// * `Err(ProgramError)` if the proof is invalid or an error occurs.
-pub fn verify_groth_proof(proof: &Proof, public: &PublicInputs /*<N_PUBLIC>*/) -> Result<()> {
+pub fn verify_groth_proof<const N_PUBLIC: usize>(
+    proof: &Proof,
+    public: &PublicInputs<N_PUBLIC>,
+) -> Result<()> {
     let vk = VERIFICATION_KEY;
     // Check vk_ic is the correct length
-    if vk.vk_ic.len() != public.inputs.len() + 1 {
-        return Err(error!(VerifierError::InvalidPublicInput));
+    if vk.vk_ic.len() != N_PUBLIC + 1 {
+        return err!(VerifierError::InvalidPublicInput);
     }
     // Prepare public inputs
     let mut prepared = vk.vk_ic[0];
     for (i, input) in public.inputs.iter().enumerate() {
         if !is_scalar_valid(input) {
-            return Err(error!(VerifierError::InvalidPublicInput));
+            return err!(VerifierError::InvalidPublicInput);
         }
         let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
             .map_err(|_| error!(VerifierError::ArithmeticError))?;
@@ -149,14 +151,13 @@ pub fn verify_groth_proof(proof: &Proof, public: &PublicInputs /*<N_PUBLIC>*/) -
     //  Instead, it returns a 32-byte big-endian integer:
     //   - If the pairing check passes, it returns 1 represented as a 32-byte big-endian integer (`[0u8; 31] + [1u8]`).
     //   - If the pairing check fails, it returns 0 represented as a 32-byte big-endian integer (`[0u8; 32]`).
-    let pairing_res =
-        alt_bn128_pairing(&pairing_input).map_err(|_| error!(VerifierError::PairingError))?;
+    let pairing_res = alt_bn128_pairing(&pairing_input).map_err(|_| VerifierError::PairingError)?;
 
     let mut expected = [0u8; 32];
     expected[31] = 1;
 
     if pairing_res != expected {
-        return Err(error!(VerifierError::VerificationError));
+        return err!(VerifierError::VerificationError);
     }
 
     Ok(())
@@ -166,7 +167,7 @@ pub fn public_inputs(
     claim_digest: [u8; 32],
     allowed_control_root: &str,
     bn254_identity_control_id: &str,
-) -> Result<PublicInputs /* TODO: <5>*/> {
+) -> Result<PublicInputs<5>> {
     let allowed_control_root: Digest = digest_from_hex(allowed_control_root);
     let bn254_identity_control_id: Digest = digest_from_hex(bn254_identity_control_id);
 
@@ -179,8 +180,7 @@ pub fn public_inputs(
     id_bn554.reverse();
     let id_bn254_fr = to_fixed_array(&id_bn554);
 
-    // TODO: Remove to vec
-    let inputs = [a0, a1, c0, c1, id_bn254_fr].to_vec();
+    let inputs = [a0, a1, c0, c1, id_bn254_fr];
 
     Ok(PublicInputs { inputs })
 }

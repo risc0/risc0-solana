@@ -295,8 +295,8 @@ export async function loadOwnerAddress(): Promise<Address<string>> {
 export function verifiable(): boolean {
   const verifiable_env = process.env.VERIFIABLE;
   if (verifiable_env === undefined) {
-    logger.debug("Verifiable builds not set, defaulting to true.");
-    return true;
+    logger.debug("Verifiable builds not set, defaulting to false.");
+    return false;
   }
   const verifiable = parseBoolean(verifiable_env);
   logger.debug(`Verifiable Builds: ${verifiable}`);

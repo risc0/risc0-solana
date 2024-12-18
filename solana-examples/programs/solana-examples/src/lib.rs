@@ -8,7 +8,7 @@ declare_id!("C1adB16jZGJHfhGFHQCMaWsjwZR5BGZUqKyxd79aiZSo");
 
 #[program]
 pub mod solana_examples {
-    use anchor_lang::solana_program::blake3::hashv;
+    use anchor_lang::solana_program::hash::hashv;
 
     use super::*;
 
@@ -52,7 +52,7 @@ pub mod solana_examples {
         };
 
         // We hash our journal outputs that we used for our earlier requirements to get a journal digest
-        let journal_digest = hashv(&[&journal_nonce.to_le_bytes()]).0;
+        let journal_digest = hashv(&[&journal_nonce.to_le_bytes()]).to_bytes();
 
         // We collect the image ID that our program is expecting our proof to match so that an attacker cannot use
         // a proof generated from a modified program

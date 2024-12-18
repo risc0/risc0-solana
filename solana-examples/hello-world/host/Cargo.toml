@@ -16,7 +16,6 @@ serde_json = "1.0.133"
 solana-program = "2.1.6"
 tokio = { version = "1.42.0", features = ["macros"] }
 tracing = "0.1.41"
-clap = { version = "4.5.23", features = ["derive"] }
 
 
 # Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
