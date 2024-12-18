@@ -16,9 +16,19 @@ import {
   getEmergencyStopWithProofInstruction,
   getEmergencyStopInstruction,
   fetchVerifierEntry,
+  getVerifyInstruction,
   fetchMaybeVerifierEntry,
 } from "../scripts/verify-router";
-import { sendTransaction, loadDefaultKeypair } from "../scripts/utils";
+import {
+  sendTransaction,
+  loadDefaultKeypair,
+  getRouterAddress,
+  getVerifierEntryPda,
+  PDA,
+  getProgramDataAddress,
+  getRouterPda,
+  changeAuthority,
+} from "../scripts/utils/utils";
 
 // Use the new web3.js, version >=2
 import {
@@ -55,8 +65,6 @@ import {
 } from "../scripts/loaderV3";
 
 import chaiAsPromised from "chai-as-promised";
-import { getVerifyInstruction } from "../scripts/bad-verifier";
-import { assert } from "node:console";
 
 chaiUse(deepEqualInAnyOrder);
 chaiUse(chaiAsPromised);
@@ -86,17 +94,13 @@ describe("verifier-router", () => {
   let deployerKeyPair: KeyPairSigner<string>;
 
   // Test Accounts
-  let router: ProgramDerivedAddress;
-  let grothPda: ProgramDerivedAddress;
+  let grothPda: PDA;
   let grothPDAAddress: Address<string>;
-  let grothPDABump: ProgramDerivedAddressBump;
   let grothProgramDataAddress: Address<string>;
-  let badVerifierPda: ProgramDerivedAddress;
+  let badVerifierPda: PDA;
   let badVerifierPDAAddress: Address<string>;
-  let badVerifierPDABump: ProgramDerivedAddressBump;
   let badVerifierProgramDataAddress: Address<string>;
   let routerAddress: Address<string>;
-  let routerBump: ProgramDerivedAddressBump;
   let owner: TransactionPartialSigner;
   let notOwner: TransactionPartialSigner;
   let sendTx: <TTransaction extends BaseTransactionMessage>(
@@ -135,62 +139,47 @@ describe("verifier-router", () => {
     notOwner = signers[1];
 
     // Calculate the PDA for the Router Program
-    router = await getProgramDerivedAddress({
-      programAddress: VERIFIER_ROUTER_PROGRAM_ADDRESS,
-      seeds: ["router"],
-    });
-
-    routerAddress = router[0];
-    routerBump = router[1];
+    const routerAddressPDA = await getRouterPda(
+      VERIFIER_ROUTER_PROGRAM_ADDRESS
+    );
+    routerAddress = routerAddressPDA.address;
 
     // Calculate the PDA for the Groth16 Verifier Program
-    const router_seed_address = getAddressCodec().encode(routerAddress);
-    const groth_seed_selector = getU32Codec().encode(GROTH16_SELECTOR);
-    const groth16_seed_address = getAddressCodec().encode(
-      GROTH16_VERIFIER_PROGRAM_ADDRESS
+    grothPda = await getVerifierEntryPda(
+      VERIFIER_ROUTER_PROGRAM_ADDRESS,
+      GROTH16_SELECTOR
     );
-    grothPda = await getProgramDerivedAddress({
-      programAddress: VERIFIER_ROUTER_PROGRAM_ADDRESS,
-      seeds: ["verifier", router_seed_address, groth_seed_selector],
-    });
-
-    const grothProgramData = await getProgramDerivedAddress({
-      programAddress: SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-      seeds: [groth16_seed_address],
-    });
-
-    grothPDAAddress = grothPda[0];
-    grothPDABump = grothPda[1];
+    grothPDAAddress = grothPda.address;
 
     console.log(`Groth Verifier (Verifier Entry) Address: ${grothPDAAddress}`);
 
-    grothProgramDataAddress = grothProgramData[0];
-    console.log(`Groth Program Data: ${grothProgramData}`);
-
-    // Calculate the PDA for the TestBadVerifier Program
-    const bad_verifier_seed_selector = getU32Codec().encode(TEST_BAD_SELECTOR);
-    const bad_verifier_seed_address = getAddressCodec().encode(
-      TEST_BAD_VERIFIER_PROGRAM_ADDRESS
+    const grothProgramData = await getProgramDataAddress(
+      GROTH16_VERIFIER_PROGRAM_ADDRESS
     );
 
-    badVerifierPda = await getProgramDerivedAddress({
-      programAddress: VERIFIER_ROUTER_PROGRAM_ADDRESS,
-      seeds: ["verifier", router_seed_address, bad_verifier_seed_selector],
-    });
+    grothProgramDataAddress = grothProgramData.address;
+    console.log(`Groth Program Data Address: ${grothProgramDataAddress}`);
 
-    badVerifierPDAAddress = badVerifierPda[0];
-    badVerifierPDABump = badVerifierPda[1];
+    // Calculate the PDA for the TestBadVerifier Program
+    badVerifierPda = await getVerifierEntryPda(
+      VERIFIER_ROUTER_PROGRAM_ADDRESS,
+      TEST_BAD_SELECTOR
+    );
+    badVerifierPDAAddress = badVerifierPda.address;
 
     console.log(
       `Bad Verifier (Verifier Entry) Address: ${badVerifierPDAAddress}`
     );
 
-    const badVerifierProgramData = await getProgramDerivedAddress({
-      programAddress: SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-      seeds: [bad_verifier_seed_address],
-    });
+    const badVerifierProgramData = await getProgramDataAddress(
+      TEST_BAD_VERIFIER_PROGRAM_ADDRESS
+    );
 
-    badVerifierProgramDataAddress = badVerifierProgramData[0];
+    badVerifierProgramDataAddress = badVerifierProgramData.address;
+
+    console.log(
+      `Bad Verifier Program Data Address: ${badVerifierProgramDataAddress}`
+    );
   });
 
   beforeEach(async () => {
@@ -251,13 +240,13 @@ describe("verifier-router", () => {
   });
 
   it("Set Router as upgrade authority of testBadVerifier", async () => {
-    const badVerifierUpgradeTransaction = getSetAuthorityInstruction({
-      bufferOrProgramDataAccount: badVerifierProgramDataAddress,
-      currentAuthority: deployerKeyPair,
-      newAuthority: routerAddress,
-    });
-
-    await sendTx(badVerifierUpgradeTransaction);
+    await changeAuthority(
+      rpc,
+      rpcSubscriptions,
+      TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
+      deployerKeyPair,
+      routerAddress
+    );
   });
 
   it("Sholud not allow a user to pass in a different ProgramData account then the one for the verifier being added", async () => {
@@ -278,13 +267,13 @@ describe("verifier-router", () => {
   });
 
   it("Set Router as upgrade authority of groth16verifier", async () => {
-    const grothUpgradeTransaction = getSetAuthorityInstruction({
-      bufferOrProgramDataAccount: grothProgramDataAddress,
-      currentAuthority: deployerKeyPair,
-      newAuthority: routerAddress,
-    });
-
-    await sendTx(grothUpgradeTransaction);
+    await changeAuthority(
+      rpc,
+      rpcSubscriptions,
+      GROTH16_VERIFIER_PROGRAM_ADDRESS,
+      deployerKeyPair,
+      routerAddress
+    );
   });
 
   it("Should not allow a non-owner to add a verifier to the router", async () => {
@@ -350,7 +339,6 @@ describe("verifier-router", () => {
     expect(routerAccount.data.verifierCount).to.equal(1);
 
     const grothAccount = await fetchVerifierEntry(rpc, grothPDAAddress);
-    expect(grothAccount.data.router).to.equal(routerAddress);
     expect(grothAccount.data.selector).to.equal(GROTH16_SELECTOR);
     expect(grothAccount.data.verifier).to.equal(
       GROTH16_VERIFIER_PROGRAM_ADDRESS
@@ -359,7 +347,6 @@ describe("verifier-router", () => {
     await sendTx(addBadVerifierInstruction);
 
     const badAccount = await fetchVerifierEntry(rpc, badVerifierPDAAddress);
-    expect(badAccount.data.router).to.equal(routerAddress);
     expect(badAccount.data.selector).to.equal(TEST_BAD_SELECTOR);
     expect(badAccount.data.verifier).to.equal(
       TEST_BAD_VERIFIER_PROGRAM_ADDRESS
@@ -373,9 +360,13 @@ describe("verifier-router", () => {
     // The Bad verifier will only accept proofs for null inputs
 
     const verifyInstruction = getVerifyInstruction({
+      router: routerAddress,
+      selector: TEST_BAD_SELECTOR,
+      proof: emptyProof,
+      verifierEntry: badVerifierPDAAddress,
+      verifierProgram: TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
       imageId: emptyImageId,
       journalDigest: emptyJournalDigest,
-      ...emptyProof,
     });
 
     await sendTx(verifyInstruction);
@@ -386,8 +377,12 @@ describe("verifier-router", () => {
 
     const verifyInstruction = getVerifyInstruction({
       imageId: badImageId,
+      router: routerAddress,
+      selector: TEST_BAD_SELECTOR,
+      proof: emptyProof,
+      verifierEntry: badVerifierPDAAddress,
+      verifierProgram: TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
       journalDigest: emptyJournalDigest,
-      ...emptyProof,
     });
 
     await expectError(
@@ -469,7 +464,7 @@ describe("verifier-router", () => {
       verifierProgram: GROTH16_VERIFIER_PROGRAM_ADDRESS,
     });
 
-    await sendTx(estopProofInstruction).catch((error) => console.log(error));
+    await sendTx(estopProofInstruction);
 
     const verifierEntry = await fetchMaybeVerifierEntry(rpc, grothPDAAddress);
     expect(verifierEntry.exists).to.equal(false);
@@ -482,11 +477,15 @@ describe("verifier-router", () => {
     // The Bad verifier will only accept proofs for null inputs
 
     const verifyInstruction = getVerifyInstruction({
+      router: routerAddress,
+      selector: TEST_BAD_SELECTOR,
+      proof: emptyProof,
+      verifierEntry: badVerifierPDAAddress,
+      verifierProgram: TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
       imageId: emptyImageId,
       journalDigest: emptyJournalDigest,
-      ...emptyProof,
     });
 
-    await expectError(sendTx(verifyInstruction), "Program is not deployed");
+    await expectError(sendTx(verifyInstruction), "AccountNotInitialized");
   });
 });

@@ -261,7 +261,6 @@ export async function getEmergencyStopWithProofInstructionAsync<
         getBytesEncoder().encode(
           new Uint8Array([118, 101, 114, 105, 102, 105, 101, 114])
         ),
-        getAddressEncoder().encode(expectAddress(accounts.router.value)),
         getU32Encoder().encode(expectSome(args.selector)),
       ],
     });

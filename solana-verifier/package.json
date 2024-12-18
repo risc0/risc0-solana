@@ -17,6 +17,7 @@
     "codama": "^1.1.0",
     "deep-equal-in-any-order": "^2.0.6",
     "dotenv": "^16.4.7",
+    "fireblocks-sdk": "^5.34.0",
     "solana-bankrun": "^0.4.0",
     "tslog": "^4.9.3"
   },

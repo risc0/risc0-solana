@@ -33,6 +33,11 @@ export async function build_cli(): Promise<void> {
   }
 }
 
+export async function codama_cli(): Promise<void> {
+  // Run the node command to regenerate the Codama TS Client Code
+  await exec("anchor run client");
+}
+
 interface DeploymentOutput {
   programId: string;
 }

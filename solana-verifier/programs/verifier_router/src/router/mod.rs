@@ -44,11 +44,10 @@ pub struct AddVerifier<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8 + 32 + 4 + 32,
+        space = 8 + 32 + 4,
         seeds = [
             b"verifier",
-            router.key().as_ref(),
-            &selector.to_le_bytes()
+            selector.to_le_bytes().as_ref()
         ],
         bump,
         constraint = selector == router.verifier_count + 1 @ RouterError::SelectorInvalid
@@ -92,15 +91,13 @@ pub struct Verify<'info> {
    pub router: Account<'info, VerifierRouter>,
    
    /// The verifier entry to use, validated using PDA derivation
-   /// Seeds are ["verifier", router_pubkey, selector_bytes]
+   /// Seeds are ["verifier", selector_bytes]
    #[account(
        seeds = [
-           b"verifier",
-           router.key().as_ref(),
-           &selector.to_le_bytes()
+            b"verifier",
+            selector.to_le_bytes().as_ref()
        ],
        bump,
-       constraint = verifier_entry.router == router.key(),
        constraint = verifier_entry.selector == selector,
    )]
    pub verifier_entry: Account<'info, VerifierEntry>,
@@ -154,7 +151,6 @@ pub fn add_verifier(ctx: Context<AddVerifier>, selector: u32) -> Result<()> {
     let router = &mut ctx.accounts.router;
     let entry = &mut ctx.accounts.verifier_entry;
 
-    entry.router = router.key();
     entry.selector = selector;
     entry.verifier = ctx.accounts.verifier_program.key();
 

@@ -17,7 +17,7 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-client = "yarn run ts-node -P ./tsconfig.json scripts/codma.ts"
+client = "yarn run ts-node scripts/codma.ts"
 deploy = "yarn run ts-node -P ./tsconfig.json scripts/deploy.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 

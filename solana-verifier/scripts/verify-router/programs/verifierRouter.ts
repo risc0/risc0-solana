@@ -26,7 +26,7 @@ import {
 } from '../instructions';
 
 export const VERIFIER_ROUTER_PROGRAM_ADDRESS =
-  '2NXuy9QcqgMMckYW7Jhb6Uxyyqb4PLqniwqowt2bwagK' as Address<'2NXuy9QcqgMMckYW7Jhb6Uxyyqb4PLqniwqowt2bwagK'>;
+  'DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa' as Address<'DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa'>;
 
 export enum VerifierRouterAccount {
   VerifierEntry,
@@ -185,7 +185,7 @@ export function identifyVerifierRouterInstruction(
 }
 
 export type ParsedVerifierRouterInstruction<
-  TProgram extends string = '2NXuy9QcqgMMckYW7Jhb6Uxyyqb4PLqniwqowt2bwagK',
+  TProgram extends string = 'DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa',
 > =
   | ({
       instructionType: VerifierRouterInstruction.AcceptOwnership;

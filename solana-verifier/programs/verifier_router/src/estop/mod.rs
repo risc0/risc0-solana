@@ -27,11 +27,9 @@ pub struct EmergencyStop<'info> {
         mut,
         seeds = [
             b"verifier",
-            router.key().as_ref(),
             &selector.to_le_bytes()
         ],
         bump,
-        constraint = verifier_entry.router == router.key(),
         constraint = verifier_entry.selector == selector,
         constraint = verifier_entry.verifier == verifier_program.key(),
         close = authority

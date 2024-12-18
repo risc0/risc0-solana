@@ -1,5 +1,5 @@
 import { Logger } from "tslog";
-import { build_cli, deploy_cli } from "./utils/deploy";
+import { build_cli, codama_cli, deploy_cli } from "./utils/deploy";
 import {
   changeAuthority,
   createRpc,
@@ -30,6 +30,9 @@ async function run_deployment(): Promise<void> {
   }
   await build_cli();
   logger.info("Build of Solana programs was successful");
+
+  await codama_cli();
+  logger.info("Regeneration of Typescript client code successful");
 
   const routerAddress = await deploy_cli(
     Programs.VerifierRouter,

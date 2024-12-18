@@ -49,22 +49,16 @@ export function getVerifierEntryDiscriminatorBytes() {
 
 export type VerifierEntry = {
   discriminator: ReadonlyUint8Array;
-  router: Address;
   selector: number;
   verifier: Address;
 };
 
-export type VerifierEntryArgs = {
-  router: Address;
-  selector: number;
-  verifier: Address;
-};
+export type VerifierEntryArgs = { selector: number; verifier: Address };
 
 export function getVerifierEntryEncoder(): Encoder<VerifierEntryArgs> {
   return transformEncoder(
     getStructEncoder([
       ['discriminator', fixEncoderSize(getBytesEncoder(), 8)],
-      ['router', getAddressEncoder()],
       ['selector', getU32Encoder()],
       ['verifier', getAddressEncoder()],
     ]),
@@ -75,7 +69,6 @@ export function getVerifierEntryEncoder(): Encoder<VerifierEntryArgs> {
 export function getVerifierEntryDecoder(): Decoder<VerifierEntry> {
   return getStructDecoder([
     ['discriminator', fixDecoderSize(getBytesDecoder(), 8)],
-    ['router', getAddressDecoder()],
     ['selector', getU32Decoder()],
     ['verifier', getAddressDecoder()],
   ]);
@@ -146,5 +139,5 @@ export async function fetchAllMaybeVerifierEntry(
 }
 
 export function getVerifierEntrySize(): number {
-  return 76;
+  return 44;
 }

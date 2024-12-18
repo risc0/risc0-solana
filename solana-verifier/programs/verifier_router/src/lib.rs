@@ -29,8 +29,8 @@ pub mod verifier_router {
 
     pub fn verify(
         ctx: Context<Verify>,
-        proof: Proof,
         selector: u32,
+        proof: Proof,
         image_id: [u8; 32],
         journal_digest: [u8; 32],
     ) -> Result<()> {

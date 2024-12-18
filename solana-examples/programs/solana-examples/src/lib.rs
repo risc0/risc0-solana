@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
 use verifier_router::cpi::accounts::Verify;
-use verifier_router::program::VerifierRouter;
+use verifier_router::program::VerifierRouter as VerifierRouterProgram;
 use verifier_router::router::{Groth16Verifier, Proof, PublicInputs, VerificationKey};
-use verifier_router::state::VerifierEntry;
+use verifier_router::state::{VerifierEntry, VerifierRouter};
 
-declare_id!("HRA9VM1DJNhzuLhPG8k9Gb97PYocXJbRuNtZhnRmLiKC");
+declare_id!("C1adB16jZGJHfhGFHQCMaWsjwZR5BGZUqKyxd79aiZSo");
 
 #[program]
 pub mod solana_examples {
@@ -45,9 +45,9 @@ pub mod solana_examples {
 
         // Next we collect the accounts necessary for making the CPI call to the Risc0 Proof Verifier program
         let cpi_accounts = Verify {
-            router: ctx.accounts.router.to_account_info(),
+            router: ctx.accounts.router_account.to_account_info(),
             verifier_entry: ctx.accounts.verifier_entry.to_account_info(),
-            verifier_program: ctx.accounts.groth16_verifier.to_account_info(),
+            verifier_program: ctx.accounts.verifier_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         };
 
@@ -67,7 +67,7 @@ pub mod solana_examples {
         // We make the CPI call to the Risc0 Verifier Router which if it returns means the proof is valid
         // In Solana you cannot recover from a CPI call which returns an error, to make this clear I explicitly unwrap although
         // behaviour would be the same if I ignored the result.
-        verifier_router::cpi::verify(cpi_ctx, proof, selector, image_id, journal_digest).unwrap();
+        verifier_router::cpi::verify(cpi_ctx, selector, proof, image_id, journal_digest).unwrap();
 
         // If we reached this line it means that our proof was valid and we modify the program state as appropriate
         ctx.accounts.program_data.nonce += 1;
@@ -89,6 +89,8 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = authority,
+        seeds = [b"data"],
+        bump,
         space = 8 + 4 + 4 + 32 // discriminator + selector + nonce + image_id
     )]
     pub program_data: Account<'info, ProgramData>,
@@ -106,14 +108,16 @@ pub struct IncrementNonce<'info> {
     pub program_data: Account<'info, ProgramData>,
 
     // The router program that will route to the correct verifier
-    pub router: Program<'info, VerifierRouter>,
+    pub router: Program<'info, VerifierRouterProgram>,
+
+    // The router account that will be used for routing our proof
+    pub router_account: Account<'info, VerifierRouter>,
 
     // The PDA entry in the router that maps our selector to the actual verifier
     // TODO: Try chanigng to unchecked account because verifier checks the fields
     #[account(
         seeds = [
             b"verifier",
-            router.key().as_ref(),
             &program_data.selector.to_le_bytes()
         ],
         bump,
@@ -121,8 +125,8 @@ pub struct IncrementNonce<'info> {
     )]
     pub verifier_entry: Account<'info, VerifierEntry>,
 
-    // The actual Groth16 verifier program that will verify the proof
-    // CHECK: The verifier program checks are handled by the router program
+    /// The actual Groth16 verifier program that will verify the proof
+    /// CHECK: The verifier program checks are handled by the router program
     pub verifier_program: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,

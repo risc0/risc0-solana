@@ -10,7 +10,6 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
-  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getProgramDerivedAddress,
@@ -32,7 +31,6 @@ import {
 } from '@solana/web3.js';
 import { VERIFIER_ROUTER_PROGRAM_ADDRESS } from '../programs';
 import {
-  expectAddress,
   expectSome,
   getAccountMetaFactory,
   type ResolvedAccount,
@@ -83,15 +81,15 @@ export type VerifyInstruction<
 
 export type VerifyInstructionData = {
   discriminator: ReadonlyUint8Array;
-  proof: Proof;
   selector: number;
+  proof: Proof;
   imageId: ReadonlyUint8Array;
   journalDigest: ReadonlyUint8Array;
 };
 
 export type VerifyInstructionDataArgs = {
-  proof: ProofArgs;
   selector: number;
+  proof: ProofArgs;
   imageId: ReadonlyUint8Array;
   journalDigest: ReadonlyUint8Array;
 };
@@ -100,8 +98,8 @@ export function getVerifyInstructionDataEncoder(): Encoder<VerifyInstructionData
   return transformEncoder(
     getStructEncoder([
       ['discriminator', fixEncoderSize(getBytesEncoder(), 8)],
-      ['proof', getProofEncoder()],
       ['selector', getU32Encoder()],
+      ['proof', getProofEncoder()],
       ['imageId', fixEncoderSize(getBytesEncoder(), 32)],
       ['journalDigest', fixEncoderSize(getBytesEncoder(), 32)],
     ]),
@@ -112,8 +110,8 @@ export function getVerifyInstructionDataEncoder(): Encoder<VerifyInstructionData
 export function getVerifyInstructionDataDecoder(): Decoder<VerifyInstructionData> {
   return getStructDecoder([
     ['discriminator', fixDecoderSize(getBytesDecoder(), 8)],
-    ['proof', getProofDecoder()],
     ['selector', getU32Decoder()],
+    ['proof', getProofDecoder()],
     ['imageId', fixDecoderSize(getBytesDecoder(), 32)],
     ['journalDigest', fixDecoderSize(getBytesDecoder(), 32)],
   ]);
@@ -139,14 +137,14 @@ export type VerifyAsyncInput<
   router?: Address<TAccountRouter>;
   /**
    * The verifier entry to use, validated using PDA derivation
-   * Seeds are ["verifier", router_pubkey, selector_bytes]
+   * Seeds are ["verifier", selector_bytes]
    */
   verifierEntry?: Address<TAccountVerifierEntry>;
   /** The verifier Program account that is matched to the verifier entry */
   verifierProgram: Address<TAccountVerifierProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
-  proof: VerifyInstructionDataArgs['proof'];
   selector: VerifyInstructionDataArgs['selector'];
+  proof: VerifyInstructionDataArgs['proof'];
   imageId: VerifyInstructionDataArgs['imageId'];
   journalDigest: VerifyInstructionDataArgs['journalDigest'];
 };
@@ -214,7 +212,6 @@ export async function getVerifyInstructionAsync<
         getBytesEncoder().encode(
           new Uint8Array([118, 101, 114, 105, 102, 105, 101, 114])
         ),
-        getAddressEncoder().encode(expectAddress(accounts.router.value)),
         getU32Encoder().encode(expectSome(args.selector)),
       ],
     });
@@ -257,14 +254,14 @@ export type VerifyInput<
   router: Address<TAccountRouter>;
   /**
    * The verifier entry to use, validated using PDA derivation
-   * Seeds are ["verifier", router_pubkey, selector_bytes]
+   * Seeds are ["verifier", selector_bytes]
    */
   verifierEntry: Address<TAccountVerifierEntry>;
   /** The verifier Program account that is matched to the verifier entry */
   verifierProgram: Address<TAccountVerifierProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
-  proof: VerifyInstructionDataArgs['proof'];
   selector: VerifyInstructionDataArgs['selector'];
+  proof: VerifyInstructionDataArgs['proof'];
   imageId: VerifyInstructionDataArgs['imageId'];
   journalDigest: VerifyInstructionDataArgs['journalDigest'];
 };
@@ -351,7 +348,7 @@ export type ParsedVerifyInstruction<
     router: TAccountMetas[0];
     /**
      * The verifier entry to use, validated using PDA derivation
-     * Seeds are ["verifier", router_pubkey, selector_bytes]
+     * Seeds are ["verifier", selector_bytes]
      */
 
     verifierEntry: TAccountMetas[1];

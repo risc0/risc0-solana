@@ -189,7 +189,7 @@ export async function loadKeypairFromFile(
   );
   return keypairSigner;
 }
-interface PDA {
+export interface PDA {
   address: Address<string>;
   bump: ProgramDerivedAddressBump;
 }
@@ -212,11 +212,10 @@ export async function getVerifierEntryPda(
   selector: number
 ): Promise<PDA> {
   const routerPda = await getRouterPda(routerAddress);
-  const routerSeedAddress = getAddressCodec().encode(routerPda.address);
   const selectorSeed = getU32Codec().encode(selector);
   const pda = await getProgramDerivedAddress({
     programAddress: routerAddress,
-    seeds: ["verifier", routerSeedAddress, selectorSeed],
+    seeds: ["verifier", selectorSeed],
   });
   return {
     address: pda[0],
@@ -304,7 +303,7 @@ export function verifiable(): boolean {
   return verifiable;
 }
 
-interface SolanaRpcInformation {
+export interface SolanaRpcInformation {
   rpc: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
   rpc_subscription: RpcSubscriptionsFromTransport<
     SolanaRpcSubscriptionsApi,
