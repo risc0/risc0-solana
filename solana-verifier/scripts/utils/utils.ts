@@ -36,6 +36,8 @@ import {
   getProgramDerivedAddress,
   ProgramDerivedAddressBump,
   getU32Codec,
+  Lamports,
+  lamports,
 } from "@solana/web3.js";
 import {
   getSetAuthorityInstruction,
@@ -43,6 +45,15 @@ import {
 } from "../loaderV3";
 import { VERIFIER_ROUTER_PROGRAM_ADDRESS } from "../verify-router";
 import { GROTH16_VERIFIER_PROGRAM_ADDRESS } from "../groth16";
+import Decimal from "decimal.js";
+import {
+  FireblocksConfig,
+  FireblocksCredentials,
+  FireblocksSolanaCluster,
+  getFireblocksSigner,
+  parseBasePath,
+} from "./fireblocksSigner";
+import { FireblocksConnectionAdapterConfig } from "solana_fireblocks_web3_provider/src/types";
 
 dotenv.config();
 const logger = new Logger();
@@ -52,6 +63,8 @@ export enum Programs {
   Groth16Verifier = "groth_16_verifier",
   TestBadVerifier = "test_bad_verifier",
 }
+
+export const LAMPORTS_PER_SOL = 1_000_000_000n;
 
 export interface SendTransactionParams<
   TTransaction extends BaseTransactionMessage
@@ -180,7 +193,7 @@ export async function loadKeypairFromFile(
     filePath.startsWith("~") ? filePath.replace("~", os.homedir()) : filePath
   );
   const loadedKeyBytes = Uint8Array.from(
-    JSON.parse(fs.readFileSync(resolvedPath, "utf8"))
+    JSON.parse(await fs.promises.readFile(resolvedPath, "utf8"))
   );
   // Here you can also set the second parameter to true in case you need to extract your private key.
   const keypairSigner = await createKeyPairSignerFromBytes(
@@ -246,8 +259,13 @@ export async function getLocalKeypair(): Promise<KeyPairSigner<string>> {
 }
 
 export async function getTransactionSigner(): Promise<TransactionSigner> {
-  const keys = await getLocalKeypair();
-  return keys;
+  if (usingFireblocks()) {
+    const signer = await getFireblocksSigner();
+    if (signer !== null) {
+      return signer;
+    }
+  }
+  return await getLocalKeypair();
 }
 
 export function getRouterAddress(): Address<string> {
@@ -290,6 +308,107 @@ export async function loadOwnerAddress(): Promise<Address<string>> {
   logger.debug(`Owner variable not set, using local keypair`);
   const keypair = await getLocalKeypair();
   return keypair.address;
+}
+
+function floatMulSol(float: number, value: bigint): bigint {
+  const floatDecimal = new Decimal(float);
+  const valueDecimal = new Decimal(value.toString());
+  const rawResult = valueDecimal.mul(floatDecimal);
+  const roundedResult = rawResult.toFixed(0);
+  return BigInt(roundedResult);
+}
+
+export function loadMinimumDeployBalance(): Lamports {
+  const balance_env = process.env.MINIMUM_DEPLOY_BALANCE;
+  const balance = parseFloat(balance_env) || 6;
+  return lamports(floatMulSol(balance, LAMPORTS_PER_SOL));
+}
+
+export function loadMinimumScriptBalance(): Lamports {
+  const balance_env = process.env.MINIMUM_BALANCE;
+  const balance = parseFloat(balance_env) || 1;
+  return lamports(floatMulSol(balance, LAMPORTS_PER_SOL));
+}
+
+export function usingFireblocks(): boolean {
+  return getFireblocksCredentials() !== null;
+}
+
+export function getSolanaCluster(): FireblocksSolanaCluster {
+  const cluster_env = process.env.SOLANA_CLUSTER.toLowerCase();
+  switch (cluster_env) {
+    case "testnet":
+    case "mainnet-beta":
+    case "devnet":
+      return cluster_env;
+    default:
+      logger.warn(
+        "SOLANA_CLUSTER environment variable not set, defaulting to devnet."
+      );
+      return "devnet";
+  }
+}
+
+export async function getFireblocksCredentials(): Promise<FireblocksConfig | null> {
+  const apiSecretPath = process.env.FIREBLOCKS_PRIVATE_KEY_PATH;
+  const apiKey = process.env.FIREBLOCKS_API_KEY;
+  const basePath_env = process.env.FIREBLOCKS_BASE_PATH;
+  const assetId = process.env.FIREBLOCKS_ASSET_ID || "SOL_TEST";
+  const vaultAccountId = process.env.FIREBLOCKS_VAULT;
+  const basePath = parseBasePath(basePath_env);
+  if (!apiSecretPath || !apiKey || !vaultAccountId) {
+    logger.warn("FIREBLOCKS VARIABLES USED BUT NOT ALL WHERE INCLUDED:");
+    if (!apiSecretPath) {
+      logger.warn(
+        "Missing FIREBLOCKS_PRIVATE_KEY_PATH environment variable, please make sure its set"
+      );
+    }
+    if (!apiKey) {
+      logger.warn(
+        "Missing FIREBLOCKS_API_KEY environment variable, please make sure its set"
+      );
+    }
+    if (!vaultAccountId) {
+      logger.warn(
+        "Missing FIREBLOCKS_VAULT environment variable, please make sure its set"
+      );
+    }
+    return null;
+  }
+  if (!basePath_env) {
+    logger.warn(
+      "Missing FIREBLOCKS_BASE_PATH environment variable, defaulting to sandbox"
+    );
+    if (!process.env.FIREBLOCKS_ASSET_ID) {
+      logger.warn(
+        "Missing FIREBLOCKS_ASSET_ID environment variable, defaulting to SOL_TEST"
+      );
+    }
+  }
+
+  let apiSecret: string;
+  try {
+    const secretResolvedPath = path.resolve(
+      apiSecretPath.startsWith("~")
+        ? apiSecretPath.replace("~", os.homedir())
+        : apiSecretPath
+    );
+    apiSecret = await fs.promises.readFile(secretResolvedPath, "utf8");
+  } catch (error) {
+    logger.error(
+      `Was unable to read Fireblocks Secret Key at path: ${apiSecretPath}`
+    );
+    logger.error(error);
+    return null;
+  }
+
+  return {
+    apiSecret,
+    assetId,
+    apiKey,
+    basePath,
+    vaultAccountId,
+  };
 }
 
 export function verifiable(): boolean {

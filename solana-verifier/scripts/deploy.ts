@@ -6,6 +6,9 @@ import {
   getLocalKeypair,
   getRouterPda,
   getTransactionSigner,
+  LAMPORTS_PER_SOL,
+  loadMinimumDeployBalance,
+  loadMinimumScriptBalance,
   Programs,
   verifiable,
 } from "./utils/utils";
@@ -21,6 +24,49 @@ async function run_deployment(): Promise<void> {
   const deployer = await getLocalKeypair();
   const verify = verifiable();
   const rpc = createRpc();
+
+  logger.info("Checking account balances before starting deploy.");
+
+  let insufficient_balance = false;
+  const minimumDeployBalance = loadMinimumDeployBalance();
+  const currentDeployBalance = await rpc.rpc
+    .getBalance(deployer.address)
+    .send();
+  const minimumDeploySol = minimumDeployBalance / LAMPORTS_PER_SOL;
+  const currentDeploySol = currentDeployBalance.value / LAMPORTS_PER_SOL;
+
+  if (currentDeployBalance.value < minimumDeployBalance) {
+    logger.error(
+      `Deployer Account: ${deployer.address} does not have the minimum balance of ${minimumDeploySol} SOL`
+    );
+    logger.error(`Account shows balance of ${currentDeploySol} SOL.`);
+    logger.error(
+      "Please add more SOL to the deployer account and run again, OR change the minimum balance by setting the MINIMUM_DEPLOY_BALANCE env value"
+    );
+    insufficient_balance = true;
+  }
+
+  const minimumScriptBalance = loadMinimumScriptBalance();
+  const currentScriptBalance = await rpc.rpc.getBalance(owner.address).send();
+  const minimumScriptSol = minimumScriptBalance / LAMPORTS_PER_SOL;
+  const currentScriptSol = currentScriptBalance.value / LAMPORTS_PER_SOL;
+
+  if (currentScriptBalance.value < minimumScriptBalance) {
+    logger.error(
+      `Owner Account: ${owner.address} does not have the minimum balance of ${minimumScriptSol} SOL`
+    );
+    logger.error(`Account shows balance of ${currentScriptSol} SOL.`);
+    logger.error(
+      "Please add more SOL to the owner account and run again, OR change the minimum balancne by setting the MINIMUM_BALANCE env value"
+    );
+    insufficient_balance = true;
+  }
+
+  if (insufficient_balance) {
+    process.exit(1);
+  }
+
+  logger.info("Accounts have minimum SOL balance to continue");
 
   // Build and deploy the Solana programs on chain
   logger.info("Attempting to sync keys and build programs for deployment");

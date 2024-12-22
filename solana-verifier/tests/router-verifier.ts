@@ -27,6 +27,7 @@ import {
   PDA,
   getProgramDataAddress,
   getRouterPda,
+  LAMPORTS_PER_SOL,
   changeAuthority,
 } from "../scripts/utils/utils";
 
@@ -68,8 +69,6 @@ import chaiAsPromised from "chai-as-promised";
 
 chaiUse(deepEqualInAnyOrder);
 chaiUse(chaiAsPromised);
-
-const LAMPORTS_PER_SOL = 1_000_000_000n;
 
 async function expectError(
   promise: Promise<any>,
