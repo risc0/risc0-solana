@@ -224,7 +224,7 @@ pub mod client {
     use super::Proof;
     use crate::BASE_FIELD_MODULUS_Q;
     use num_bigint::BigUint;
-    use risc0_zkvm::{Groth16Receipt, Groth16Seal, ReceiptClaim};
+    use risc0_zkvm::{Groth16Receipt, ReceiptClaim};
 
     pub fn negate_g1(point: &[u8; 64]) -> Result<[u8; 64], ()> {
         let x = &point[..32];

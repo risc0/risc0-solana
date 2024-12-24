@@ -136,12 +136,12 @@ pub fn emergency_stop_with_proof(
 ) -> Result<()> {
     let zero_array = [0u8; 32];
 
-    msg!("Emeregency Stop With Proof Reached!");
+    msg!("Emergency Stop With Proof Reached!");
     require!(
         image_id == zero_array && journal_digest == zero_array,
         EstopError::InvalidProofOfExploit
     );
-    msg!("Proof requierements Passed!");
+    msg!("Proof requirements Passed!");
 
     // Attempt to verify the proof
     let verifier_program = ctx.accounts.verifier_program.to_account_info();

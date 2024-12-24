@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use groth_16_verifier::{Proof, PublicInputs, VerificationKey};
+use groth_16_verifier::Proof;
 
 declare_id!("AdneDeXEyPk72VfLQMrQBTjuQj2fuBXm9efJdcB7eE3r");
 

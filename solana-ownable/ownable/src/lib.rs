@@ -35,7 +35,7 @@ pub enum OwnableError {
     #[msg("Not the current owner")]
     NotOwner,
 
-    /// This error occurs when the owner of a contract attempts to inititate a transfer
+    /// This error occurs when the owner of a contract attempts to initiate a transfer
     /// to themselves.
     #[msg("Cannot transfer ownership to yourself")]
     CannotTransferToSelf,

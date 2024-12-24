@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use groth_16_verifier::{Proof, PublicInputs, VerificationKey};
+use groth_16_verifier::Proof;
 
 pub mod estop;
 pub mod router;
@@ -13,7 +13,6 @@ use state::*;
 declare_id!("DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa");
 #[program]
 pub mod verifier_router {
-    use ownable::OwnableError;
     use state::VerifierRouter;
 
     use super::*;

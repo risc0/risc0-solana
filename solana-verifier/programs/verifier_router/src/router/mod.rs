@@ -110,7 +110,7 @@ pub struct Verify<'info> {
    )]
    pub verifier_program: UncheckedAccount<'info>,
 
-   /// CHECK: Only included to staisfy Anchor CPI requirements
+   /// CHECK: Only included to satisfy Anchor CPI requirements
    pub system_program: Program<'info, System>
 }
 
@@ -178,8 +178,6 @@ pub fn verify(
    image_id: [u8; 32],
    journal_digest: [u8; 32],
 ) -> Result<()> {
-   let verifier = &ctx.accounts.verifier_entry;
-
     let verifier_program = ctx.accounts.verifier_program.to_account_info();
     let verifier_accounts = VerifyProof { 
         system_program: ctx.accounts.system_program.to_account_info(),

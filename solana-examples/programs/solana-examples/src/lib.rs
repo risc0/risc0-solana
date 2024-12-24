@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use verifier_router::cpi::accounts::Verify;
 use verifier_router::program::VerifierRouter as VerifierRouterProgram;
-use verifier_router::router::{Groth16Verifier, Proof, PublicInputs, VerificationKey};
+use verifier_router::router::Proof;
 use verifier_router::state::{VerifierEntry, VerifierRouter};
 
 declare_id!("C1adB16jZGJHfhGFHQCMaWsjwZR5BGZUqKyxd79aiZSo");
@@ -14,8 +14,8 @@ pub mod solana_examples {
 
     /// This allows us to initialize our program by setting the selector of the Risc0 Router to use for
     /// proofs, the image_id of our own example program, and by setting the default value for our internal
-    /// nonce. We may want to allow chanigng the selector so that we can use different verifiers in the future.
-    /// The image ID is tightly coupled with our guest program and prevents a user from changing the offchain
+    /// nonce. We may want to allow changing the selector so that we can use different verifiers in the future.
+    /// The image ID is tightly coupled with our guest program and prevents a user from changing the off-chain
     /// executable code and still getting a valid transaction.
     pub fn initialize(ctx: Context<Initialize>, selector: u32, image_id: [u8; 32]) -> Result<()> {
         ctx.accounts.program_data.selector = selector;
@@ -28,7 +28,7 @@ pub mod solana_examples {
     /// it takes a proof that someone has run our off chain program for the next nonce value.
     /// If the input they gave the off chain program was for an earlier or later nonce,
     /// the on chain program rejects the transaction. If it the proof is for incrementing to
-    /// the next nonce it accepts the transaciton.
+    /// the next nonce it accepts the transaction.
     pub fn increment_nonce(
         ctx: Context<IncrementNonce>,
         proof: Proof,
@@ -66,7 +66,7 @@ pub mod solana_examples {
 
         // We make the CPI call to the Risc0 Verifier Router which if it returns means the proof is valid
         // In Solana you cannot recover from a CPI call which returns an error, to make this clear I explicitly unwrap although
-        // behaviour would be the same if I ignored the result.
+        // behavior would be the same if I ignored the result.
         verifier_router::cpi::verify(cpi_ctx, selector, proof, image_id, journal_digest).unwrap();
 
         // If we reached this line it means that our proof was valid and we modify the program state as appropriate
