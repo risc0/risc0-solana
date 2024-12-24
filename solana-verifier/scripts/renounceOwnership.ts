@@ -15,10 +15,10 @@ const logger = createLogger();
 
 async function ConfirmOperation() {
   console.log(
-    "Script will Renounce Ownership, Verify intent by answering the prompt:"
+    "Script will Renounce Ownership, Verify intent by answering the prompt:",
   );
   const confirm = await rl.question(
-    'Type "YES CALL RENOUNCE OWNERSHIP" to confirm: '
+    'Type "YES CALL RENOUNCE OWNERSHIP" to confirm: ',
   );
   if (confirm !== "YES CALL RENOUNCE OWNERSHIP") {
     logger.error("User input did not match above confirmation, Exiting.");

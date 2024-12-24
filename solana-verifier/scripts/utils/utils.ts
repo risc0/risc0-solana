@@ -13,7 +13,6 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   createTransactionMessage,
-  pipe,
   SolanaRpcSubscriptionsApi,
   Commitment,
   BaseTransactionMessage,
@@ -22,7 +21,6 @@ import {
   KeyPairSigner,
   Address,
   address,
-  createSolanaRpcApi,
   RpcFromTransport,
   RpcTransport,
   SolanaRpcApiFromTransport,
@@ -93,7 +91,6 @@ import {
   getFireblocksSigner,
   parseBasePath,
 } from "./fireblocksSigner";
-import { FireblocksConnectionAdapterConfig } from "solana_fireblocks_web3_provider/src/types";
 
 export enum Programs {
   VerifierRouter = "verifier_router",
@@ -108,7 +105,7 @@ type BlockhashTransaction = BaseTransactionMessage &
   TransactionMessageWithBlockhashLifetime;
 
 export interface SendTransactionParams<
-  TTransaction extends BlockhashTransaction
+  TTransaction extends BlockhashTransaction,
 > {
   rpc: Rpc<SolanaRpcApi>;
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
@@ -118,7 +115,7 @@ export interface SendTransactionParams<
 }
 
 export async function sendTransaction<
-  TTransaction extends BlockhashTransaction
+  TTransaction extends BlockhashTransaction,
 >({
   rpc,
   rpcSubscriptions,
@@ -153,36 +150,12 @@ export async function sendTransaction<
   );
 
   // Sign the transaction
-  const signedTransaction = await signTransactionMessageWithSigners(
-    finalTransaction
-  );
+  const signedTransaction =
+    await signTransactionMessageWithSigners(finalTransaction);
 
   // Send and confirm the transaction
   await sendAndConfirmTransaction(signedTransaction, { commitment });
 }
-
-// TODO: Optional Extra bit
-// // Of course the IDL generated for the LoaderV3 wolud not have any state data
-// // to parse ProgramData accounts, lets do it manually...
-// export async function getProgramData(rpc: Rpc<SolanaRpcApi>, rpcSubscriptions: RpcSubscriptions<SolanaRpcApi>, programDataAddress: Address<string>) {
-//   getAccount
-// }
-
-// export async function getAuthority(
-//   rpc: Rpc<SolanaRpcApi>,
-//   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
-//   programAddress: Address<string>
-// ): Promise<Address<string>> {
-//   logger.trace(
-//     `Fetching the current authority for the program at address: ${programAddress}`
-//   );
-//   const programDataAddress = await getProgramDataAddress(programAddress);
-
-//   logger.trace(
-//     `Using ${programDataAddress} as the address for authority lookup`
-//   );
-
-// }
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));

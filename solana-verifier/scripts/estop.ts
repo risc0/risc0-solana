@@ -15,7 +15,7 @@ const logger = createLogger();
 
 async function collectUserInput(): Promise<number> {
   console.log(
-    "Script to call Estop initated, answer the following questions to continue:"
+    "Script to call Estop initiated, answer the following questions to continue:"
   );
   const input = Number(await rl.question("Enter Verifier selector (u32): "));
   const verify = Number(
@@ -39,7 +39,7 @@ async function collectUserInput(): Promise<number> {
 async function run_estop() {
   logger.info("Verifier Estop By Owner Script Started");
   logger.warn(
-    "CALLING E-STOP ON A VERIFIER IS IRREVERSABLE, MAKE SURE THIS IS WHAT YOU WANT TO DO"
+    "CALLING E-STOP ON A VERIFIER IS IRREVERSIBLE, MAKE SURE THIS IS WHAT YOU WANT TO DO"
   );
   const rpc = createRpc();
 

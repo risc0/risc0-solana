@@ -1,23 +1,6 @@
-import { promisify } from "util";
-import process from "child_process";
+import { sendTransaction, getRouterPda, createLogger } from "./utils";
 import {
-  verifiable,
-  loadDefaultKeypair,
-  loadOwnerAddress,
-  Programs,
-  getLocalKeypair,
-  sendTransaction,
-  createRpc,
-  getTransactionSigner,
-  getRouterPda,
-  createLogger,
-} from "./utils";
-import {
-  address,
   Address,
-  createSolanaRpc,
-  createTransactionMessage,
-  getProgramDerivedAddress,
   Rpc,
   RpcSubscriptions,
   SolanaRpcApi,
@@ -26,7 +9,7 @@ import {
 } from "@solana/web3.js";
 import { getInitializeInstruction } from "../verify-router";
 
-export async function initilizeRouter(
+export async function initializeRouter(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   routerAddress: Address<string>,
@@ -35,9 +18,9 @@ export async function initilizeRouter(
   const log = createLogger();
 
   log.info(
-    `Initilizing the Verifier Router at address: ${routerAddress} with owner: ${owner.address}`
+    `Initializing the Verifier Router at address: ${routerAddress} with owner: ${owner.address}`
   );
-  // Configrue the Verifier Router program
+  // Configure the Verifier Router program
   const routerPDA = await getRouterPda(routerAddress);
 
   log.debug(
@@ -53,7 +36,7 @@ export async function initilizeRouter(
   );
 
   log.info(
-    "Attempting to submit the Verifier Router Initilization Instruction"
+    "Attempting to submit the Verifier Router Initialization Instruction"
   );
 
   await sendTransaction({

@@ -19,7 +19,7 @@ async function runAddVerifier() {
   const owner = await getTransactionSigner();
 
   logger.info(
-    `Using Router: ${routerAddress}, adding verifier ${verifierAddress}`
+    `Using Router: ${routerAddress}, adding verifier ${verifierAddress}`,
   );
 
   const rpc = createRpc();
@@ -33,7 +33,7 @@ async function runAddVerifier() {
     rpc.rpc_subscription,
     verifierAddress,
     deployer,
-    routerPda.address
+    routerPda.address,
   );
 
   logger.info("Adding the verifier to the Router");
@@ -42,7 +42,7 @@ async function runAddVerifier() {
     rpc.rpc_subscription,
     verifierAddress,
     routerAddress,
-    owner
+    owner,
   );
 
   logger.info("Verifier was successfully added to the router");

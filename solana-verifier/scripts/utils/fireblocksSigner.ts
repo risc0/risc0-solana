@@ -9,7 +9,7 @@ import {
   sleep,
   usingFireblocks,
 } from "./utils";
-import { Address, address } from "@solana/addresses";
+import { address } from "@solana/addresses";
 // import { ApiBaseUrl } from "solana_fireblocks_web3_provider/src/types";
 // import {
 //   FireblocksSDK,
@@ -25,11 +25,7 @@ import {
   TransactionResponse,
   TransactionStateEnum,
 } from "@fireblocks/ts-sdk";
-import {
-  getBase58Codec,
-  getBase16Codec,
-  SignatureBytes,
-} from "@solana/web3.js";
+import { getBase16Codec, SignatureBytes } from "@solana/web3.js";
 import { PeerType } from "fireblocks-sdk";
 
 export type FireBlocksSigner<TAddress extends string = string> =
@@ -37,8 +33,6 @@ export type FireBlocksSigner<TAddress extends string = string> =
     TransactionPartialSigner<TAddress> & {
       fireblocks: Fireblocks;
     };
-
-export type FireblocksBaseUrl = "testnet" | "mainnet-beta" | "devnet";
 
 const logger = createLogger();
 
@@ -67,12 +61,6 @@ export function parseBasePath(value: string): BasePath {
 export async function createSignerFromFireblocksConfig(
   config: FireblocksConfig
 ): Promise<FireBlocksSigner> {
-  //   const fireblocksClient = new FireblocksSDK(
-  //     config.apiSecret,
-  //     config.apiKey,
-  //     config.apiBaseUrl
-  //   );
-
   const fireblocks = new Fireblocks({
     apiKey: config.apiKey,
     secretKey: config.apiSecret,

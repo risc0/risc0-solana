@@ -9,16 +9,7 @@
   "instructions": [
     {
       "name": "verify",
-      "discriminator": [
-        133,
-        161,
-        141,
-        48,
-        120,
-        198,
-        88,
-        150
-      ],
+      "discriminator": [133, 161, 141, 48, 120, 198, 88, 150],
       "accounts": [
         {
           "name": "system_program",
@@ -37,19 +28,13 @@
         {
           "name": "image_id",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
           "name": "journal_digest",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
@@ -104,28 +89,19 @@
           {
             "name": "pi_a",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           },
           {
             "name": "pi_b",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "pi_c",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           }
         ]
@@ -143,47 +119,32 @@
           {
             "name": "vk_alpha_g1",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           },
           {
             "name": "vk_beta_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_gamma_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_delta_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_ic",
             "type": {
               "vec": {
-                "array": [
-                  "u8",
-                  64
-                ]
+                "array": ["u8", 64]
               }
             }
           }

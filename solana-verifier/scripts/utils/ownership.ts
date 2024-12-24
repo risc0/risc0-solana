@@ -25,7 +25,7 @@ export async function transferOwnership(
   newOwner: Address<string>
 ) {
   logger.info(
-    `Transfering ownership from ${owner} to new owner: ${newOwner} for router ${routerAddress}`
+    `Transferring ownership from ${owner} to new owner: ${newOwner} for router ${routerAddress}`
   );
 
   const routerPda = await getRouterPda(routerAddress);
@@ -124,7 +124,7 @@ export async function cancelTransfer(
   });
 
   logger.info(
-    `Ownership transfer cancelation transaction confirmed. ${routerData.data.ownership.pendingOwner} may no longer accept ownership of the transfer.`
+    `Ownership transfer cancellation transaction confirmed. ${routerData.data.ownership.pendingOwner} may no longer accept ownership of the transfer.`
   );
 }
 
@@ -134,7 +134,7 @@ export async function renounceOwnership(
   routerAddress: Address<string>,
   owner: TransactionSigner
 ) {
-  logger.warn("RENOUNCE OWNERSHIP HAS BEEN CALLED, THIS IS IRREVERSABLE...");
+  logger.warn("RENOUNCE OWNERSHIP HAS BEEN CALLED, THIS IS IRREVERSIBLE...");
   logger.warn(
     "Once renounced no new verifier may be added to the router, and Emergency Stop can only be called by producing a verifiably bad proof."
   );

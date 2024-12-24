@@ -7,7 +7,7 @@ import path from "node:path";
 const routerIdlPath = path.normalize("../target/idl/verifier_router.json");
 const grothIdlPath = path.normalize("../target/idl/groth_16_verifier.json");
 const badVerifierIdlPath = path.normalize(
-  "../target/idl/test_bad_verifier.json"
+  "../target/idl/test_bad_verifier.json",
 );
 const loaderV3IdlPath = path.normalize("../idl/loader-v3.json");
 const loaderV4IdlPath = path.normalize("../idl/loader-v4.json");

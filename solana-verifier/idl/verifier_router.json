@@ -9,16 +9,7 @@
   "instructions": [
     {
       "name": "accept_ownership",
-      "discriminator": [
-        172,
-        23,
-        43,
-        13,
-        238,
-        213,
-        85,
-        150
-      ],
+      "discriminator": [172, 23, 43, 13, 238, 213, 85, 150],
       "accounts": [
         {
           "name": "state",
@@ -34,16 +25,7 @@
     },
     {
       "name": "add_verifier",
-      "discriminator": [
-        165,
-        72,
-        135,
-        225,
-        67,
-        181,
-        255,
-        135
-      ],
+      "discriminator": [165, 72, 135, 225, 67, 181, 255, 135],
       "accounts": [
         {
           "name": "router",
@@ -52,14 +34,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [114, 111, 117, 116, 101, 114]
               }
             ]
           }
@@ -71,16 +46,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  118,
-                  101,
-                  114,
-                  105,
-                  102,
-                  105,
-                  101,
-                  114
-                ]
+                "value": [118, 101, 114, 105, 102, 105, 101, 114]
               },
               {
                 "kind": "account",
@@ -123,16 +89,7 @@
     },
     {
       "name": "cancel_transfer",
-      "discriminator": [
-        50,
-        32,
-        70,
-        130,
-        142,
-        41,
-        111,
-        175
-      ],
+      "discriminator": [50, 32, 70, 130, 142, 41, 111, 175],
       "accounts": [
         {
           "name": "state",
@@ -148,16 +105,7 @@
     },
     {
       "name": "emergency_stop",
-      "discriminator": [
-        179,
-        143,
-        200,
-        137,
-        108,
-        245,
-        248,
-        35
-      ],
+      "discriminator": [179, 143, 200, 137, 108, 245, 248, 35],
       "accounts": [
         {
           "name": "router",
@@ -169,38 +117,20 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [114, 111, 117, 116, 101, 114]
               }
             ]
           }
         },
         {
           "name": "verifier_entry",
-          "docs": [
-            "The verifier entry to be closed"
-          ],
+          "docs": ["The verifier entry to be closed"],
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  118,
-                  101,
-                  114,
-                  105,
-                  102,
-                  105,
-                  101,
-                  114
-                ]
+                "value": [118, 101, 114, 105, 102, 105, 101, 114]
               },
               {
                 "kind": "account",
@@ -230,9 +160,7 @@
         },
         {
           "name": "authority",
-          "docs": [
-            "The authority attempting the emergency stop"
-          ],
+          "docs": ["The authority attempting the emergency stop"],
           "writable": true,
           "signer": true
         },
@@ -250,16 +178,7 @@
     },
     {
       "name": "emergency_stop_with_proof",
-      "discriminator": [
-        54,
-        84,
-        135,
-        9,
-        249,
-        7,
-        161,
-        4
-      ],
+      "discriminator": [54, 84, 135, 9, 249, 7, 161, 4],
       "accounts": [
         {
           "name": "router",
@@ -271,38 +190,20 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [114, 111, 117, 116, 101, 114]
               }
             ]
           }
         },
         {
           "name": "verifier_entry",
-          "docs": [
-            "The verifier entry to be closed"
-          ],
+          "docs": ["The verifier entry to be closed"],
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  118,
-                  101,
-                  114,
-                  105,
-                  102,
-                  105,
-                  101,
-                  114
-                ]
+                "value": [118, 101, 114, 105, 102, 105, 101, 114]
               },
               {
                 "kind": "account",
@@ -317,9 +218,7 @@
         },
         {
           "name": "authority",
-          "docs": [
-            "The authority attempting the emergency stop"
-          ],
+          "docs": ["The authority attempting the emergency stop"],
           "writable": true,
           "signer": true
         },
@@ -355,19 +254,13 @@
         {
           "name": "image_id",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
           "name": "journal_digest",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
@@ -382,16 +275,7 @@
     },
     {
       "name": "initialize",
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
       "accounts": [
         {
           "name": "router",
@@ -404,31 +288,20 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [114, 111, 117, 116, 101, 114]
               }
             ]
           }
         },
         {
           "name": "authority",
-          "docs": [
-            "The authority initializing and paying for the router"
-          ],
+          "docs": ["The authority initializing and paying for the router"],
           "writable": true,
           "signer": true
         },
         {
           "name": "system_program",
-          "docs": [
-            "Required for account initialization"
-          ],
+          "docs": ["Required for account initialization"],
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -436,16 +309,7 @@
     },
     {
       "name": "renounce_ownership",
-      "discriminator": [
-        19,
-        143,
-        91,
-        79,
-        34,
-        168,
-        174,
-        125
-      ],
+      "discriminator": [19, 143, 91, 79, 34, 168, 174, 125],
       "accounts": [
         {
           "name": "state",
@@ -461,16 +325,7 @@
     },
     {
       "name": "transfer_ownership",
-      "discriminator": [
-        65,
-        177,
-        215,
-        73,
-        53,
-        45,
-        99,
-        47
-      ],
+      "discriminator": [65, 177, 215, 73, 53, 45, 99, 47],
       "accounts": [
         {
           "name": "state",
@@ -491,34 +346,16 @@
     },
     {
       "name": "verify",
-      "discriminator": [
-        133,
-        161,
-        141,
-        48,
-        120,
-        198,
-        88,
-        150
-      ],
+      "discriminator": [133, 161, 141, 48, 120, 198, 88, 150],
       "accounts": [
         {
           "name": "router",
-          "docs": [
-            "The router account containing the verifier registry"
-          ],
+          "docs": ["The router account containing the verifier registry"],
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  117,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [114, 111, 117, 116, 101, 114]
               }
             ]
           }
@@ -533,16 +370,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  118,
-                  101,
-                  114,
-                  105,
-                  102,
-                  105,
-                  101,
-                  114
-                ]
+                "value": [118, 101, 114, 105, 102, 105, 101, 114]
               },
               {
                 "kind": "account",
@@ -580,19 +408,13 @@
         {
           "name": "image_id",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
           "name": "journal_digest",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
@@ -609,44 +431,17 @@
   "accounts": [
     {
       "name": "VerifierEntry",
-      "discriminator": [
-        102,
-        247,
-        148,
-        158,
-        33,
-        153,
-        100,
-        93
-      ]
+      "discriminator": [102, 247, 148, 158, 33, 153, 100, 93]
     },
     {
       "name": "VerifierRouter",
-      "discriminator": [
-        188,
-        46,
-        30,
-        54,
-        25,
-        63,
-        197,
-        26
-      ]
+      "discriminator": [188, 46, 30, 54, 25, 63, 197, 26]
     }
   ],
   "events": [
     {
       "name": "EmergencyStopEvent",
-      "discriminator": [
-        44,
-        170,
-        247,
-        63,
-        91,
-        138,
-        146,
-        110
-      ]
+      "discriminator": [44, 170, 247, 63, 91, 138, 146, 110]
     }
   ],
   "errors": [
@@ -747,9 +542,7 @@
         "fields": [
           {
             "name": "owner",
-            "docs": [
-              "The current owner's public key"
-            ],
+            "docs": ["The current owner's public key"],
             "type": {
               "option": "pubkey"
             }
@@ -774,28 +567,19 @@
           {
             "name": "pi_a",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           },
           {
             "name": "pi_b",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "pi_c",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           }
         ]
@@ -813,47 +597,32 @@
           {
             "name": "vk_alpha_g1",
             "type": {
-              "array": [
-                "u8",
-                64
-              ]
+              "array": ["u8", 64]
             }
           },
           {
             "name": "vk_beta_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_gamma_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_delta_g2",
             "type": {
-              "array": [
-                "u8",
-                128
-              ]
+              "array": ["u8", 128]
             }
           },
           {
             "name": "vk_ic",
             "type": {
               "vec": {
-                "array": [
-                  "u8",
-                  64
-                ]
+                "array": ["u8", 64]
               }
             }
           }

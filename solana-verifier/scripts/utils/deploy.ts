@@ -2,22 +2,12 @@ import { promisify } from "util";
 import process from "child_process";
 import {
   verifiable,
-  loadDefaultKeypair,
-  loadOwnerAddress,
   Programs,
-  getLocalKeypair,
-  sendTransaction,
-  createRpc,
-  getTransactionSigner,
 } from "./utils";
 import {
   address,
   Address,
-  createSolanaRpc,
-  createTransactionMessage,
-  getProgramDerivedAddress,
 } from "@solana/web3.js";
-import { getInitializeInstruction } from "../verify-router";
 const exec = promisify(process.exec);
 
 export async function build_cli(): Promise<void> {
@@ -44,7 +34,7 @@ interface DeploymentOutput {
 export async function deploy_cli(
   program: Programs,
   verify: boolean,
-  upgradable: boolean
+  upgradable: boolean,
 ): Promise<Address<string>> {
   const command = [`anchor deploy --program-name ${program}`];
 

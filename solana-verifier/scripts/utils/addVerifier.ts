@@ -1,7 +1,5 @@
 import {
   Address,
-  getAddressCodec,
-  getProgramDerivedAddress,
   Rpc,
   RpcSubscriptions,
   SolanaRpcApi,
@@ -9,8 +7,6 @@ import {
   TransactionSigner,
 } from "@solana/web3.js";
 import {
-  getTransactionSigner,
-  createRpc,
   sendTransaction,
   getRouterPda,
   getVerifierEntryPda,
@@ -18,14 +14,11 @@ import {
   createLogger,
 } from "./utils";
 import {
-  fetchVerifierEntry,
   fetchVerifierRouter,
   getAddVerifierInstruction,
 } from "../verify-router";
-import {
-  getSetAuthorityInstruction,
-  SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-} from "../loaderV3";
+
+
 
 const logger = createLogger();
 
@@ -34,10 +27,10 @@ export async function addVerifier(
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
   verifierAddress: Address<string>,
   routerAddress: Address<string>,
-  owner: TransactionSigner
+  owner: TransactionSigner,
 ): Promise<void> {
   logger.info(
-    `Risc0 Verifier being with address: ${verifierAddress} being added to the router at address: ${routerAddress}`
+    `Risc0 Verifier being with address: ${verifierAddress} being added to the router at address: ${routerAddress}`,
   );
 
   logger.debug(`Using the address: ${owner.address} as owner`);
@@ -45,19 +38,19 @@ export async function addVerifier(
   const routerPDA = await getRouterPda(routerAddress);
 
   logger.debug(
-    `Router PDA address is: ${routerPDA.address} and the bump is: ${routerPDA.bump}`
+    `Router PDA address is: ${routerPDA.address} and the bump is: ${routerPDA.bump}`,
   );
 
   const routerData = await fetchVerifierRouter(rpc, routerPDA.address);
 
   logger.debug(
-    `Current verifier entry count is ${routerData.data.verifierCount}`
+    `Current verifier entry count is ${routerData.data.verifierCount}`,
   );
 
   const selector = routerData.data.verifierCount + 1;
 
   logger.info(
-    `Using ${selector} as the selector for the verifier at address ${verifierAddress}`
+    `Using ${selector} as the selector for the verifier at address ${verifierAddress}`,
   );
 
   const routerEntry = await getVerifierEntryPda(routerAddress, selector);
@@ -75,7 +68,7 @@ export async function addVerifier(
       verifierProgram: verifierAddress,
       verifierProgramData: verifierProgramData.address,
     },
-    { programAddress: routerAddress }
+    { programAddress: routerAddress },
   );
 
   await sendTransaction({

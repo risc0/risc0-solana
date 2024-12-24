@@ -22,7 +22,7 @@ async function runTransferOwnership() {
     rpc.rpc_subscription,
     routerAddress,
     owner,
-    newOwner
+    newOwner,
   );
 
   logger.info("Verifier Router Ownership Transfer Script Completed");

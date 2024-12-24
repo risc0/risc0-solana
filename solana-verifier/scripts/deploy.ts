@@ -20,9 +20,8 @@ import {
   Programs,
   verifiable,
 } from "./utils/utils";
-import { initilizeRouter } from "./utils/init";
+import { initializeRouter } from "./utils/init";
 import { addVerifier } from "./utils/addVerifier";
-import { Lamports } from "@solana/web3.js";
 
 const logger = createLogger();
 
@@ -106,10 +105,10 @@ async function run_deployment(): Promise<void> {
   );
   logger.info(`Groth 16 Verifier Program Address will be: ${verifier_address}`);
 
-  logger.info("Programs succesfully deployed");
+  logger.info("Programs successfully deployed");
 
-  // Initilize the Router by setting owner for the contract and creating the PDA
-  await initilizeRouter(rpc.rpc, rpc.rpc_subscription, routerAddress, owner);
+  // Initialize the Router by setting owner for the contract and creating the PDA
+  await initializeRouter(rpc.rpc, rpc.rpc_subscription, routerAddress, owner);
 
   // Setup the Groth 16 Verifiers Upgrade authority to be the Router PDA
   const routerPda = await getRouterPda(routerAddress);
@@ -130,7 +129,7 @@ async function run_deployment(): Promise<void> {
     owner
   );
 
-  logger.info("Programs deployed and initilized");
+  logger.info("Programs deployed and initialized");
 }
 
 run_deployment().catch((error) => console.error(error));

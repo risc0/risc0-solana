@@ -1,7 +1,6 @@
 import {
   createLogger,
   createRpc,
-  getNewOwnerAddress,
   getRouterAddress,
   getTransactionSigner,
 } from "./utils/utils";
