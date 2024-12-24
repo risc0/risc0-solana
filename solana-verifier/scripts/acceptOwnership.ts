@@ -1,5 +1,5 @@
-import { Logger } from "tslog";
 import {
+  createLogger,
   createRpc,
   getNewOwnerAddress,
   getRouterAddress,
@@ -7,7 +7,7 @@ import {
 } from "./utils/utils";
 import { acceptOwnership } from "./utils/ownership";
 
-const logger = new Logger();
+const logger = createLogger();
 
 async function runAcceptOwnership() {
   logger.info("Verifier Router Ownership Acceptance Script started");

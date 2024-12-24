@@ -6,7 +6,6 @@ import {
   Address,
   TransactionSigner,
 } from "@solana/web3.js";
-import { Logger } from "tslog";
 import {
   fetchVerifierRouter,
   getAcceptOwnershipInstruction,
@@ -14,9 +13,9 @@ import {
   getRenounceOwnershipInstruction,
   getTransferOwnershipInstruction,
 } from "../verify-router";
-import { getRouterPda, sendTransaction, sleep } from "./utils";
+import { createLogger, getRouterPda, sendTransaction, sleep } from "./utils";
 
-const logger = new Logger();
+const logger = createLogger();
 
 export async function transferOwnership(
   rpc: Rpc<SolanaRpcApi>,

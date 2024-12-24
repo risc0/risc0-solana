@@ -8,7 +8,6 @@ import {
   SolanaRpcSubscriptionsApi,
   TransactionSigner,
 } from "@solana/web3.js";
-import { Logger } from "tslog";
 import {
   getTransactionSigner,
   createRpc,
@@ -16,6 +15,7 @@ import {
   getRouterPda,
   getVerifierEntryPda,
   getProgramDataAddress,
+  createLogger,
 } from "./utils";
 import {
   fetchVerifierEntry,
@@ -27,7 +27,7 @@ import {
   SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
 } from "../loaderV3";
 
-const logger = new Logger();
+const logger = createLogger();
 
 export async function addVerifier(
   rpc: Rpc<SolanaRpcApi>,

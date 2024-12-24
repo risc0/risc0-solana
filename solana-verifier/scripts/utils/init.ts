@@ -1,6 +1,5 @@
 import { promisify } from "util";
 import process from "child_process";
-import { Logger } from "tslog";
 import {
   verifiable,
   loadDefaultKeypair,
@@ -11,6 +10,7 @@ import {
   createRpc,
   getTransactionSigner,
   getRouterPda,
+  createLogger,
 } from "./utils";
 import {
   address,
@@ -32,7 +32,7 @@ export async function initilizeRouter(
   routerAddress: Address<string>,
   owner: TransactionSigner
 ): Promise<void> {
-  const log = new Logger();
+  const log = createLogger();
 
   log.info(
     `Initilizing the Verifier Router at address: ${routerAddress} with owner: ${owner.address}`

@@ -18,7 +18,12 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 client = "yarn run ts-node scripts/codma.ts"
-deploy = "yarn run ts-node -P ./tsconfig.json scripts/deploy.ts"
+deploy = "yarn run ts-node scripts/deploy.ts"
+estop = "yarn run ts-node scripts/estop.ts"
+renounce = "yarn run ts-node scripts/renounceOwnership.ts"
+transfer = "yarn run ts-node scripts/transferOwnership.ts"
+add = "yarn run ts-node scripts/addVerifier.ts"
+accept = "yarn run ts-node scripts/acceptOwnership.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]

@@ -1,4 +1,5 @@
 import {
+  createLogger,
   createRpc,
   getRouterAddress,
   getTransactionSigner,
@@ -8,10 +9,9 @@ const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
-import { Logger } from "tslog";
 import { estopByOwner } from "./utils/estop";
 
-const logger = new Logger();
+const logger = createLogger();
 
 async function collectUserInput(): Promise<number> {
   console.log(

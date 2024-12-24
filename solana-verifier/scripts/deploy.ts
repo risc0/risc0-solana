@@ -1,7 +1,15 @@
-import { Logger } from "tslog";
+/**
+ * Risc0 Verifier Router and Initial Groth16 Verifier deployment script.
+ * This script will build, deploy, and initialize the Risc0 Prover Router
+ * and Initial Groth16 Verifier program on the Solana blockchain. You can modify how
+ * it operates by setting environment variables. This program requires the deployment
+ * address to have at least 5 SOL before it starts and the owner address that will
+ * initialize the programs to have at least 1 SOL.
+ */
 import { build_cli, codama_cli, deploy_cli } from "./utils/deploy";
 import {
   changeAuthority,
+  createLogger,
   createRpc,
   getLocalKeypair,
   getRouterPda,
@@ -14,8 +22,9 @@ import {
 } from "./utils/utils";
 import { initilizeRouter } from "./utils/init";
 import { addVerifier } from "./utils/addVerifier";
+import { Lamports } from "@solana/web3.js";
 
-const logger = new Logger();
+const logger = createLogger();
 
 async function run_deployment(): Promise<void> {
   logger.info("Risc0 Solana Program Deployment Script started");

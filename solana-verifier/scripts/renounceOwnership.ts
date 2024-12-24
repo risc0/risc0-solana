@@ -1,5 +1,5 @@
-import { Logger } from "tslog";
 import {
+  createLogger,
   createRpc,
   getRouterAddress,
   getTransactionSigner,
@@ -11,7 +11,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-const logger = new Logger();
+const logger = createLogger();
 
 async function ConfirmOperation() {
   console.log(

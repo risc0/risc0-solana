@@ -7,8 +7,8 @@ import {
   TransactionSigner,
 } from "@solana/web3.js";
 
-import { Logger } from "tslog";
 import {
+  createLogger,
   getProgramDataAddress,
   getRouterPda,
   getVerifierEntryPda,
@@ -21,7 +21,7 @@ import {
 } from "../verify-router";
 import { SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS } from "../loaderV3";
 
-const logger = new Logger();
+const logger = createLogger();
 
 export async function estopByOwner(
   rpc: Rpc<SolanaRpcApi>,

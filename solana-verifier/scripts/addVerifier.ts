@@ -1,4 +1,3 @@
-import { Logger } from "tslog";
 import {
   createRpc,
   changeAuthority,
@@ -7,10 +6,11 @@ import {
   getTransactionSigner,
   getVerifierAddress,
   getRouterPda,
+  createLogger,
 } from "./utils/utils";
 import { addVerifier } from "./utils/addVerifier";
 
-const logger = new Logger();
+const logger = createLogger();
 async function runAddVerifier() {
   logger.info("Running script to add a new verifier to the Router");
   const verifierAddress = getVerifierAddress();

@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import dotenv from "dotenv";
-import { Logger } from "tslog";
 
 import {
   Rpc,
@@ -38,6 +37,8 @@ import {
   getU32Codec,
   Lamports,
   lamports,
+  ITransactionMessageWithFeePayer,
+  TransactionMessageWithBlockhashLifetime,
 } from "@solana/web3.js";
 import {
   getSetAuthorityInstruction,
@@ -46,17 +47,53 @@ import {
 import { VERIFIER_ROUTER_PROGRAM_ADDRESS } from "../verify-router";
 import { GROTH16_VERIFIER_PROGRAM_ADDRESS } from "../groth16";
 import Decimal from "decimal.js";
+import { Logger } from "tslog";
+
+dotenv.config();
+const logger = createLogger();
+
+export function createLogger() {
+  const logLevel = process.env.LOG_LEVEL || "info";
+  let minLevel: number;
+  switch (logLevel.toLowerCase()) {
+    case "silly":
+      minLevel = 0;
+      break;
+    case "trace":
+      minLevel = 1;
+      break;
+    case "debug":
+      minLevel = 2;
+      break;
+    case "info":
+      minLevel = 3;
+      break;
+    case "warn":
+      minLevel = 4;
+      break;
+    case "error":
+      minLevel = 5;
+      break;
+    case "fatal":
+      minLevel = 6;
+      break;
+    default:
+      // INFO
+      minLevel = 3;
+      break;
+  }
+  const logger = new Logger({
+    minLevel,
+  });
+  return logger;
+}
+
 import {
   FireblocksConfig,
-  FireblocksCredentials,
-  FireblocksSolanaCluster,
   getFireblocksSigner,
   parseBasePath,
 } from "./fireblocksSigner";
 import { FireblocksConnectionAdapterConfig } from "solana_fireblocks_web3_provider/src/types";
-
-dotenv.config();
-const logger = new Logger();
 
 export enum Programs {
   VerifierRouter = "verifier_router",
@@ -66,8 +103,12 @@ export enum Programs {
 
 export const LAMPORTS_PER_SOL = 1_000_000_000n;
 
+type BlockhashTransaction = BaseTransactionMessage &
+  ITransactionMessageWithFeePayer<string> &
+  TransactionMessageWithBlockhashLifetime;
+
 export interface SendTransactionParams<
-  TTransaction extends BaseTransactionMessage
+  TTransaction extends BlockhashTransaction
 > {
   rpc: Rpc<SolanaRpcApi>;
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
@@ -77,7 +118,7 @@ export interface SendTransactionParams<
 }
 
 export async function sendTransaction<
-  TTransaction extends BaseTransactionMessage
+  TTransaction extends BlockhashTransaction
 >({
   rpc,
   rpcSubscriptions,
@@ -105,7 +146,7 @@ export async function sendTransaction<
   const transactionWithFeePayer = setTransactionMessageFeePayerSigner(
     feePayer,
     transactionWithBlockhash
-  );
+  ) as TTransaction;
   const finalTransaction = appendTransactionMessageInstruction(
     instruction,
     transactionWithFeePayer
@@ -332,21 +373,6 @@ export function loadMinimumScriptBalance(): Lamports {
 
 export function usingFireblocks(): boolean {
   return getFireblocksCredentials() !== null;
-}
-
-export function getSolanaCluster(): FireblocksSolanaCluster {
-  const cluster_env = process.env.SOLANA_CLUSTER.toLowerCase();
-  switch (cluster_env) {
-    case "testnet":
-    case "mainnet-beta":
-    case "devnet":
-      return cluster_env;
-    default:
-      logger.warn(
-        "SOLANA_CLUSTER environment variable not set, defaulting to devnet."
-      );
-      return "devnet";
-  }
 }
 
 export async function getFireblocksCredentials(): Promise<FireblocksConfig | null> {

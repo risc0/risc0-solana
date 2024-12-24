@@ -54,6 +54,7 @@ import {
   BaseTransactionMessage,
   SolanaError,
   SOLANA_ERROR__ACCOUNTS__ACCOUNT_NOT_FOUND,
+  lamports,
 } from "@solana/web3.js";
 
 import { use as chaiUse, expect } from "chai";
@@ -195,14 +196,14 @@ describe("verifier-router", () => {
 
     // Airdrop SOL to owner for transactions
     await requestAirdrop({
-      lamports: 2n * LAMPORTS_PER_SOL,
+      lamports: lamports(2n * LAMPORTS_PER_SOL),
       recipientAddress: owner.address,
       commitment: "confirmed",
     });
 
     // Airdrop SOL to owner for transactions
     await requestAirdrop({
-      lamports: 2n * LAMPORTS_PER_SOL,
+      lamports: lamports(2n * LAMPORTS_PER_SOL),
       recipientAddress: notOwner.address,
       commitment: "confirmed",
     });

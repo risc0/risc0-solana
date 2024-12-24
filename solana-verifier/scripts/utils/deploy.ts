@@ -1,6 +1,5 @@
 import { promisify } from "util";
 import process from "child_process";
-import { Logger } from "tslog";
 import {
   verifiable,
   loadDefaultKeypair,
