@@ -101,8 +101,8 @@ export type InitializeAsyncInput<
   TAccountSystemProgram extends string = string,
 > = {
   /**
-   * The router account to be initialized
-   * Space allocated for discriminator + owner + option<pending_owner> + count
+   * The router account PDA to be initialized
+   * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
    */
   router?: Address<TAccountRouter>;
   /** The authority initializing and paying for the router */
@@ -187,8 +187,8 @@ export type InitializeInput<
   TAccountSystemProgram extends string = string,
 > = {
   /**
-   * The router account to be initialized
-   * Space allocated for discriminator + owner + option<pending_owner> + count
+   * The router account PDA to be initialized
+   * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
    */
   router: Address<TAccountRouter>;
   /** The authority initializing and paying for the router */
@@ -262,8 +262,8 @@ export type ParsedInitializeInstruction<
   programAddress: Address<TProgram>;
   accounts: {
     /**
-     * The router account to be initialized
-     * Space allocated for discriminator + owner + option<pending_owner> + count
+     * The router account PDA to be initialized
+     * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
      */
 
     router: TAccountMetas[0];

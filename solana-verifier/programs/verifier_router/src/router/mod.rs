@@ -10,10 +10,15 @@ pub use groth_16_verifier::program::Groth16Verifier;
 use groth_16_verifier::cpi::accounts::VerifyProof;
 
 /// Account validation struct for router initialization
+///
+/// # Security Considerations
+/// * Initializes a new PDA with seeds = [b"router"]
+/// * Requires a signing authority that will become the initial owner
+/// * Allocates space for ownership data and verifier count
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-   /// The router account to be initialized
-   /// Space allocated for discriminator + owner + option<pending_owner> + count
+   /// The router account PDA to be initialized
+   /// Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
    #[account(
        init,
        seeds = [b"router"],
@@ -31,9 +36,16 @@ pub struct Initialize<'info> {
    pub system_program: Program<'info, System>,
 }
 
+/// Account validation for adding a new verifier program
+///
+/// # Security Considerations
+/// * Validates the verifier program's upgrade authority is the router
+/// * Ensures sequential selector assignment
+/// * Creates a PDA for the verifier entry with seeds = [b"verifier", selector_bytes]
 #[derive(Accounts)]
 #[instruction(selector: u32)]
 pub struct AddVerifier<'info> {
+    /// The router account PDA managing verifiers and required Upgrade Authority address of verifier
     #[account(
         mut,
         seeds = [b"router"],
@@ -41,6 +53,7 @@ pub struct AddVerifier<'info> {
     )]
     pub router: Account<'info, VerifierRouter>,
 
+    /// The new verifier entry to be created which must have a selector in sequential order
     #[account(
         init,
         payer = authority,
@@ -54,6 +67,7 @@ pub struct AddVerifier<'info> {
     )]
     pub verifier_entry: Account<'info, VerifierEntry>,
 
+    /// Program data account (Data of account authority from LoaderV3) of the verifier being added
     #[account(
         seeds = [
                 verifier_program.key().as_ref()
@@ -64,34 +78,42 @@ pub struct AddVerifier<'info> {
     )]
     pub verifier_program_data: Account<'info, ProgramData>,
 
+    /// The program executable code account of the verifier program to be added
+    /// Must be an unchecked account because any program ID can be here
+    /// CHECK: checks are done by constraint in program data account
     #[account(
         executable
     )]
-    /// CHECK: checks are done by constraint in program data account
     pub verifier_program: UncheckedAccount<'info>,
     
+    /// The owner of the router which must sign this transaction
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// Required for account initialization
     pub system_program: Program<'info, System>,
 }
 
-/// Account validation struct for verifier operations
+/// Account validation for verifier calls
+///
+/// Validates accounts needed for proof verification and ensures the
+/// verifier program matches the registered entry of the requested selector.
+/// 
+/// Ensures a program is not attempting to use a selector which had been E-Stopped. 
 ///
 /// # Arguments
 /// * `selector` - A u32 that uniquely identifies the verifier entry
 #[derive(Accounts)]
 #[instruction(selector: u32)]
 pub struct Verify<'info> {
-   /// The router account containing the verifier registry
+    /// The router account PDA managing verifiers
    #[account(
     seeds = [b"router"],
     bump
    )]
    pub router: Account<'info, VerifierRouter>,
    
-   /// The verifier entry to use, validated using PDA derivation
-   /// Seeds are ["verifier", selector_bytes]
+    /// The verifier entry to use, validated using PDA derivation
    #[account(
        seeds = [
             b"verifier",
@@ -102,7 +124,9 @@ pub struct Verify<'info> {
    )]
    pub verifier_entry: Account<'info, VerifierEntry>,
 
-   /// The verifier Program account that is matched to the verifier entry 
+   /// The verifier program to be invoked
+   /// Must match the address of the program listed in the verifier entry of the specific selector
+   /// Must be an unchecked account because any program ID can be here
    /// CHECK: Manually checked to be the same value of the verifier entry program
    #[account(
         executable,
@@ -110,14 +134,17 @@ pub struct Verify<'info> {
    )]
    pub verifier_program: UncheckedAccount<'info>,
 
-   /// CHECK: Only included to satisfy Anchor CPI requirements
+   /// CHECK: Only included to satisfy Anchor CPI Lifetime requirements
    pub system_program: Program<'info, System>
 }
 
 /// Initializes a new router with the given authority as owner
 ///
+/// Creates a new router account initialized as a PDA and sets up initial
+/// ownership and verifier count.
+///
 /// # Arguments
-/// * `ctx` - The context containing validated accounts
+/// * `ctx` - The Initialize context containing validated accounts
 ///
 /// # Returns
 /// * `Ok(())` if initialization is successful
@@ -128,19 +155,24 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
    Ok(())
 }
 
-/// Add a new verifier to the router
+/// Adds a new verifier to the router's registry
+///
+/// Creates a new verifier entry and associates it with the provided selector.
+/// Only callable by the router's owner. Checks that the program being added to
+/// the router is both Upgradable (via Loader V3) and has the Upgrade authority 
+/// set to the router PDA address.
 ///
 /// # Arguments
-/// * `ctx` - The context containing validated accounts
-/// * `selector` - The selector to associate with this verifier
-/// * `verifier` - The public key of the verifier program
+/// * `ctx` - The AddVerifier context containing validated accounts
+/// * `selector` - The selector to associate with this verifier 
+///                (must be one higher then the current verifier count)
 ///
 /// # Returns
 /// * `Ok(())` if the verifier is successfully added
-/// * `Err(RouterError::SelectorInUse)` if the selector is already in use
-/// * `Err(RouterError::InvalidLoader)` if the verifier uses the wrong loader
-/// * `Err(RouterError::InvalidAuthority)` if the router is not the upgrade authority
-/// * `Err(RouterError::Overflow)` if adding the verifier would overflow the counter
+/// * `Err(RouterError::SelectorInvalid)` if the selector is invalid (not exactly one greater
+///                                       then current verifier count)
+/// * `Err(RouterError::VerifierInvalidAuthority)` if the router PDA is not the upgrade authority
+/// * `Err(RouterError::Overflow)` if adding the verifier would overflow the counter (highly unlikely)
 pub fn add_verifier(ctx: Context<AddVerifier>, selector: u32) -> Result<()> {
     // Verify the caller is the owner of the contract
     ctx.accounts
@@ -162,16 +194,20 @@ pub fn add_verifier(ctx: Context<AddVerifier>, selector: u32) -> Result<()> {
     Ok(())
 }
 
-/// Verifies a proof using the specified verifier
+/// Verifies a zero-knowledge proof using the specified verifier
+///
+/// Routes the verification request to the appropriate verifier program
+/// based on the selector.
 ///
 /// # Arguments
-/// * `ctx` - The context containing validated accounts
-/// * `seal` - The seal data to be verified
+/// * `ctx` - The Verify context containing validated accounts
+/// * `proof` - The proof to be verified
 /// * `image_id` - The image ID associated with the proof
 /// * `journal_digest` - The journal digest for verification
 ///
 /// # Returns
-/// * `Ok(())` if the verification is successful 
+/// * `Ok(())` if the verification is successful
+/// * `Err` if verification fails or the verifier returns an error
 pub fn verify(
    ctx: Context<Verify>,
    proof: Proof,

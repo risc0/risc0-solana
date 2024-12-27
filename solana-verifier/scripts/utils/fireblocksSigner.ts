@@ -10,13 +10,6 @@ import {
   usingFireblocks,
 } from "./utils";
 import { address } from "@solana/addresses";
-// import { ApiBaseUrl } from "solana_fireblocks_web3_provider/src/types";
-// import {
-//   FireblocksSDK,
-//   PeerType,
-//   TransactionArguments,
-//   TransactionOperation,
-// } from "fireblocks-sdk";
 import {
   BasePath,
   CreateTransactionResponse,
@@ -28,14 +21,27 @@ import {
 import { getBase16Codec, SignatureBytes } from "@solana/web3.js";
 import { PeerType } from "fireblocks-sdk";
 
+const logger = createLogger();
+
 export type FireBlocksSigner<TAddress extends string = string> =
   MessagePartialSigner<TAddress> &
     TransactionPartialSigner<TAddress> & {
       fireblocks: Fireblocks;
     };
 
-const logger = createLogger();
-
+/**
+ * Configuration interface for Fireblocks wallet integration
+ *
+ * Contains the necessary credentials and parameters for initializing a connection
+ * to the Fireblocks API and accessing a specific vault account.
+ *
+ * @interface
+ * @property {string} apiSecret - RSA private key for API authentication
+ * @property {string} apiKey - Fireblocks API key for authentication
+ * @property {BasePath} basePath - API endpoint (Sandbox/US/EU/EU2)
+ * @property {string} assetId - Asset identifier (e.g., "SOL_TEST" for testnet)
+ * @property {string} vaultAccountId - ID of the Fireblocks vault account to use
+ */
 export interface FireblocksConfig {
   apiSecret: string;
   apiKey: string;
@@ -44,6 +50,19 @@ export interface FireblocksConfig {
   vaultAccountId: string;
 }
 
+/**
+ * Converts a string input to a Fireblocks BasePath enum value
+ *
+ * Maps input strings to the appropriate API endpoint environment.
+ * Defaults to Sandbox if the input doesn't match any known environment.
+ *
+ * @param {string} value - The base path string to parse ("us", "eu", "eu2", "sandbox")
+ * @returns {BasePath} The corresponding BasePath enum value
+ *
+ * @example
+ * const path = parseBasePath("us"); // Returns BasePath.US
+ * const defaultPath = parseBasePath("invalid"); // Returns BasePath.Sandbox
+ */
 export function parseBasePath(value: string): BasePath {
   switch (value.toLowerCase()) {
     case "us":
@@ -53,11 +72,36 @@ export function parseBasePath(value: string): BasePath {
     case "eu2":
       return BasePath.EU2;
     case "sandbox":
+      return BasePath.Sandbox;
     default:
+      if (value == "") {
+        logger.info(
+          "Fireblocks Base Path value was not set, defaulting to sandbox"
+        );
+      } else {
+        logger.warn(
+          "Fireblocks Base Path value could not be parsed, defaulting to sandbox"
+        );
+      }
       return BasePath.Sandbox;
   }
 }
 
+/**
+ * Creates a Solana message/transaction signer using Fireblocks credentials
+ *
+ * Initializes a connection to Fireblocks and creates a signer that implements
+ * both MessagePartialSigner and TransactionPartialSigner interfaces. The signer
+ * uses the Fireblocks API to sign Solana transactions and messages.
+ *
+ * @param {FireblocksConfig} config - Fireblocks configuration parameters
+ * @returns {Promise<FireBlocksSigner>} A signer that can sign Solana transactions and messages
+ * @throws If unable to initialize Fireblocks connection or fetch vault addresses
+ *
+ * @security Handles sensitive signing operations through Fireblocks HSM
+ * @security Requires RAW Signing feature which is disabled by fireblocks without contacting them first
+ * @see waitForSignature - Internal helper method for polling signature status
+ */
 export async function createSignerFromFireblocksConfig(
   config: FireblocksConfig
 ): Promise<FireBlocksSigner> {
@@ -171,6 +215,25 @@ export async function createSignerFromFireblocksConfig(
   };
 }
 
+/**
+ * Factory function that creates a Fireblocks signer based on environment configuration
+ *
+ * Attempts to create a Fireblocks signer using environment variables. Returns null
+ * if Fireblocks is not configured or if required configuration is missing.
+ *
+ * @returns {Promise<FireBlocksSigner | null>} A configured Fireblocks signer or null if
+ *                                            Fireblocks is not configured
+ * @throws If environment variables exist but are invalid or if connection fails
+ *
+ * Required environment variables:
+ * - FIREBLOCKS_PRIVATE_KEY_PATH
+ * - FIREBLOCKS_API_KEY
+ * - FIREBLOCKS_VAULT
+ *
+ * Optional environment variables:
+ * - FIREBLOCKS_BASE_PATH (defaults to "sandbox")
+ * - FIREBLOCKS_ASSET_ID (defaults to "SOL_TEST")
+ */
 export async function getFireblocksSigner(): Promise<FireBlocksSigner | null> {
   if (!usingFireblocks()) {
     return null;

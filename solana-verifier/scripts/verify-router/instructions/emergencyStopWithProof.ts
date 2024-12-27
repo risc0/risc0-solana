@@ -106,15 +106,11 @@ export type EmergencyStopWithProofInstructionData = {
   discriminator: ReadonlyUint8Array;
   selector: number;
   proof: Proof;
-  imageId: ReadonlyUint8Array;
-  journalDigest: ReadonlyUint8Array;
 };
 
 export type EmergencyStopWithProofInstructionDataArgs = {
   selector: number;
   proof: ProofArgs;
-  imageId: ReadonlyUint8Array;
-  journalDigest: ReadonlyUint8Array;
 };
 
 export function getEmergencyStopWithProofInstructionDataEncoder(): Encoder<EmergencyStopWithProofInstructionDataArgs> {
@@ -123,8 +119,6 @@ export function getEmergencyStopWithProofInstructionDataEncoder(): Encoder<Emerg
       ['discriminator', fixEncoderSize(getBytesEncoder(), 8)],
       ['selector', getU32Encoder()],
       ['proof', getProofEncoder()],
-      ['imageId', fixEncoderSize(getBytesEncoder(), 32)],
-      ['journalDigest', fixEncoderSize(getBytesEncoder(), 32)],
     ]),
     (value) => ({
       ...value,
@@ -138,8 +132,6 @@ export function getEmergencyStopWithProofInstructionDataDecoder(): Decoder<Emerg
     ['discriminator', fixDecoderSize(getBytesDecoder(), 8)],
     ['selector', getU32Decoder()],
     ['proof', getProofDecoder()],
-    ['imageId', fixDecoderSize(getBytesDecoder(), 32)],
-    ['journalDigest', fixDecoderSize(getBytesDecoder(), 32)],
   ]);
 }
 
@@ -162,25 +154,35 @@ export type EmergencyStopWithProofAsyncInput<
   TAccountBpfLoaderUpgradableProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  /** The router account containing ownership and verifier registry */
+  /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
   router?: Address<TAccountRouter>;
-  /** The verifier entry to be closed */
+  /**
+   * The verifier entry of the program to be stopped.
+   * This entry will be closed and refunded to the caller on successful stop
+   */
   verifierEntry?: Address<TAccountVerifierEntry>;
-  /** The authority attempting the emergency stop */
+  /**
+   * The authority attempting the emergency stop (either the router owner OR the person presenting proof of exploit)
+   * The authority will get the rent refund of both the program account of the verifier and the verifierEntry account
+   */
   authority: TransactionSigner<TAccountAuthority>;
   /**
-   * The program account of the verifier to be used
-   * Address is verified against VerifierEntry
+   * The program account of the verifier to be used Address is verified against VerifierEntry
+   * Must be Unchecked as there could be any program ID here.
+   * This account will be closed by a CPI call to the Loader V3 and rent refunded to the authority
    */
   verifierProgram: Address<TAccountVerifierProgram>;
   /** The Program Data account of the verifier to be closed */
   verifierProgramData?: Address<TAccountVerifierProgramData>;
+  /**
+   * This is the Loader V3 BPF Upgrade program, Not written in Anchor so we cannot use the
+   * CPI extensions to automatically generate a secure CPI call and must do so manually
+   */
   bpfLoaderUpgradableProgram: Address<TAccountBpfLoaderUpgradableProgram>;
+  /** Required because we are closing accounts */
   systemProgram?: Address<TAccountSystemProgram>;
   selector: EmergencyStopWithProofInstructionDataArgs['selector'];
   proof: EmergencyStopWithProofInstructionDataArgs['proof'];
-  imageId: EmergencyStopWithProofInstructionDataArgs['imageId'];
-  journalDigest: EmergencyStopWithProofInstructionDataArgs['journalDigest'];
 };
 
 export async function getEmergencyStopWithProofInstructionAsync<
@@ -318,25 +320,35 @@ export type EmergencyStopWithProofInput<
   TAccountBpfLoaderUpgradableProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  /** The router account containing ownership and verifier registry */
+  /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
   router: Address<TAccountRouter>;
-  /** The verifier entry to be closed */
+  /**
+   * The verifier entry of the program to be stopped.
+   * This entry will be closed and refunded to the caller on successful stop
+   */
   verifierEntry: Address<TAccountVerifierEntry>;
-  /** The authority attempting the emergency stop */
+  /**
+   * The authority attempting the emergency stop (either the router owner OR the person presenting proof of exploit)
+   * The authority will get the rent refund of both the program account of the verifier and the verifierEntry account
+   */
   authority: TransactionSigner<TAccountAuthority>;
   /**
-   * The program account of the verifier to be used
-   * Address is verified against VerifierEntry
+   * The program account of the verifier to be used Address is verified against VerifierEntry
+   * Must be Unchecked as there could be any program ID here.
+   * This account will be closed by a CPI call to the Loader V3 and rent refunded to the authority
    */
   verifierProgram: Address<TAccountVerifierProgram>;
   /** The Program Data account of the verifier to be closed */
   verifierProgramData: Address<TAccountVerifierProgramData>;
+  /**
+   * This is the Loader V3 BPF Upgrade program, Not written in Anchor so we cannot use the
+   * CPI extensions to automatically generate a secure CPI call and must do so manually
+   */
   bpfLoaderUpgradableProgram: Address<TAccountBpfLoaderUpgradableProgram>;
+  /** Required because we are closing accounts */
   systemProgram?: Address<TAccountSystemProgram>;
   selector: EmergencyStopWithProofInstructionDataArgs['selector'];
   proof: EmergencyStopWithProofInstructionDataArgs['proof'];
-  imageId: EmergencyStopWithProofInstructionDataArgs['imageId'];
-  journalDigest: EmergencyStopWithProofInstructionDataArgs['journalDigest'];
 };
 
 export function getEmergencyStopWithProofInstruction<
@@ -438,21 +450,36 @@ export type ParsedEmergencyStopWithProofInstruction<
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    /** The router account containing ownership and verifier registry */
+    /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
     router: TAccountMetas[0];
-    /** The verifier entry to be closed */
+    /**
+     * The verifier entry of the program to be stopped.
+     * This entry will be closed and refunded to the caller on successful stop
+     */
+
     verifierEntry: TAccountMetas[1];
-    /** The authority attempting the emergency stop */
+    /**
+     * The authority attempting the emergency stop (either the router owner OR the person presenting proof of exploit)
+     * The authority will get the rent refund of both the program account of the verifier and the verifierEntry account
+     */
+
     authority: TAccountMetas[2];
     /**
-     * The program account of the verifier to be used
-     * Address is verified against VerifierEntry
+     * The program account of the verifier to be used Address is verified against VerifierEntry
+     * Must be Unchecked as there could be any program ID here.
+     * This account will be closed by a CPI call to the Loader V3 and rent refunded to the authority
      */
 
     verifierProgram: TAccountMetas[3];
     /** The Program Data account of the verifier to be closed */
     verifierProgramData: TAccountMetas[4];
+    /**
+     * This is the Loader V3 BPF Upgrade program, Not written in Anchor so we cannot use the
+     * CPI extensions to automatically generate a secure CPI call and must do so manually
+     */
+
     bpfLoaderUpgradableProgram: TAccountMetas[5];
+    /** Required because we are closing accounts */
     systemProgram: TAccountMetas[6];
   };
   data: EmergencyStopWithProofInstructionData;

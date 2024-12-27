@@ -133,14 +133,15 @@ export type VerifyAsyncInput<
   TAccountVerifierProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  /** The router account containing the verifier registry */
+  /** The router account PDA managing verifiers */
   router?: Address<TAccountRouter>;
-  /**
-   * The verifier entry to use, validated using PDA derivation
-   * Seeds are ["verifier", selector_bytes]
-   */
+  /** The verifier entry to use, validated using PDA derivation */
   verifierEntry?: Address<TAccountVerifierEntry>;
-  /** The verifier Program account that is matched to the verifier entry */
+  /**
+   * The verifier program to be invoked
+   * Must match the address of the program listed in the verifier entry of the specific selector
+   * Must be an unchecked account because any program ID can be here
+   */
   verifierProgram: Address<TAccountVerifierProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   selector: VerifyInstructionDataArgs['selector'];
@@ -250,14 +251,15 @@ export type VerifyInput<
   TAccountVerifierProgram extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
-  /** The router account containing the verifier registry */
+  /** The router account PDA managing verifiers */
   router: Address<TAccountRouter>;
-  /**
-   * The verifier entry to use, validated using PDA derivation
-   * Seeds are ["verifier", selector_bytes]
-   */
+  /** The verifier entry to use, validated using PDA derivation */
   verifierEntry: Address<TAccountVerifierEntry>;
-  /** The verifier Program account that is matched to the verifier entry */
+  /**
+   * The verifier program to be invoked
+   * Must match the address of the program listed in the verifier entry of the specific selector
+   * Must be an unchecked account because any program ID can be here
+   */
   verifierProgram: Address<TAccountVerifierProgram>;
   systemProgram?: Address<TAccountSystemProgram>;
   selector: VerifyInstructionDataArgs['selector'];
@@ -344,15 +346,16 @@ export type ParsedVerifyInstruction<
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    /** The router account containing the verifier registry */
+    /** The router account PDA managing verifiers */
     router: TAccountMetas[0];
+    /** The verifier entry to use, validated using PDA derivation */
+    verifierEntry: TAccountMetas[1];
     /**
-     * The verifier entry to use, validated using PDA derivation
-     * Seeds are ["verifier", selector_bytes]
+     * The verifier program to be invoked
+     * Must match the address of the program listed in the verifier entry of the specific selector
+     * Must be an unchecked account because any program ID can be here
      */
 
-    verifierEntry: TAccountMetas[1];
-    /** The verifier Program account that is matched to the verifier entry */
     verifierProgram: TAccountMetas[2];
     systemProgram: TAccountMetas[3];
   };

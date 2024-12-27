@@ -382,12 +382,20 @@ describe("verifier-router", () => {
   });
 
   it("should not allow any user to call e-stop if they do not have a valid proof the verifier is broken", async () => {
+    const piA = new Uint8Array(64);
+    piA[0] = 42;
+
+    // Test Proof for the Test Bad Verifier
+    let badProof: Proof = {
+      piA, // Non-Empty 64 Byte array
+      piB: new Array(128), // Empty 128 byte array
+      piC: new Uint8Array(64), // Empty 64 byte array
+    };
+
     const estopProofInstruction = getEmergencyStopWithProofInstruction({
       authority: notOwner,
       bpfLoaderUpgradableProgram: SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-      imageId: badImageId,
-      journalDigest: emptyJournalDigest,
-      proof: emptyProof,
+      proof: badProof,
       router: routerAddress,
       selector: TEST_BAD_SELECTOR,
       verifierEntry: badVerifierPDAAddress,
@@ -420,8 +428,6 @@ describe("verifier-router", () => {
     const estopProofInstruction = getEmergencyStopWithProofInstruction({
       authority: notOwner,
       bpfLoaderUpgradableProgram: SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-      imageId: emptyImageId,
-      journalDigest: emptyJournalDigest,
       proof: emptyProof,
       router: routerAddress,
       selector: TEST_BAD_SELECTOR,

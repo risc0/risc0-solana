@@ -132,11 +132,20 @@ export type AddVerifierAsyncInput<
   TAccountAuthority extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
+  /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
   router?: Address<TAccountRouter>;
+  /** The new verifier entry to be created which must have a selector in sequential order */
   verifierEntry?: Address<TAccountVerifierEntry>;
+  /** Program data account (Data of account authority from LoaderV3) of the verifier being added */
   verifierProgramData?: Address<TAccountVerifierProgramData>;
+  /**
+   * The program executable code account of the verifier program to be added
+   * Must be an unchecked account because any program ID can be here
+   */
   verifierProgram: Address<TAccountVerifierProgram>;
+  /** The owner of the router which must sign this transaction */
   authority: TransactionSigner<TAccountAuthority>;
+  /** Required for account initialization */
   systemProgram?: Address<TAccountSystemProgram>;
   selector: AddVerifierInstructionDataArgs['selector'];
 };
@@ -269,11 +278,20 @@ export type AddVerifierInput<
   TAccountAuthority extends string = string,
   TAccountSystemProgram extends string = string,
 > = {
+  /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
   router: Address<TAccountRouter>;
+  /** The new verifier entry to be created which must have a selector in sequential order */
   verifierEntry: Address<TAccountVerifierEntry>;
+  /** Program data account (Data of account authority from LoaderV3) of the verifier being added */
   verifierProgramData: Address<TAccountVerifierProgramData>;
+  /**
+   * The program executable code account of the verifier program to be added
+   * Must be an unchecked account because any program ID can be here
+   */
   verifierProgram: Address<TAccountVerifierProgram>;
+  /** The owner of the router which must sign this transaction */
   authority: TransactionSigner<TAccountAuthority>;
+  /** Required for account initialization */
   systemProgram?: Address<TAccountSystemProgram>;
   selector: AddVerifierInstructionDataArgs['selector'];
 };
@@ -371,11 +389,21 @@ export type ParsedAddVerifierInstruction<
 > = {
   programAddress: Address<TProgram>;
   accounts: {
+    /** The router account PDA managing verifiers and required Upgrade Authority address of verifier */
     router: TAccountMetas[0];
+    /** The new verifier entry to be created which must have a selector in sequential order */
     verifierEntry: TAccountMetas[1];
+    /** Program data account (Data of account authority from LoaderV3) of the verifier being added */
     verifierProgramData: TAccountMetas[2];
+    /**
+     * The program executable code account of the verifier program to be added
+     * Must be an unchecked account because any program ID can be here
+     */
+
     verifierProgram: TAccountMetas[3];
+    /** The owner of the router which must sign this transaction */
     authority: TAccountMetas[4];
+    /** Required for account initialization */
     systemProgram: TAccountMetas[5];
   };
   data: AddVerifierInstructionData;

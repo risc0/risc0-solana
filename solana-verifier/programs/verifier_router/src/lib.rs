@@ -11,6 +11,18 @@ use router::*;
 use state::*;
 
 declare_id!("DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa");
+
+/// Verifier Router Program for Anchor
+///
+/// This program provides a routing and management system for zero-knowledge proof verifiers
+/// on Solana. It implements a registry of verifier programs that can be dynamically added
+/// and managed, with built-in emergency stop capabilities for security.
+///
+/// # Features
+/// * Registry of verifier programs with unique selectors
+/// * Two-step ownership transfers via the Ownable trait
+/// * Verifier upgrade authority checks on addition to registry
+/// * Emergency stop functionality with proof-based or owner-based calls
 #[program]
 pub mod verifier_router {
     use state::VerifierRouter;
@@ -26,6 +38,7 @@ pub mod verifier_router {
         router::add_verifier(ctx, selector)
     }
 
+    /// This is a test to explore what happens with the text here
     pub fn verify(
         ctx: Context<Verify>,
         selector: u32,
@@ -45,10 +58,8 @@ pub mod verifier_router {
         ctx: Context<EmergencyStop>,
         selector: u32,
         proof: Proof,
-        image_id: [u8; 32],
-        journal_digest: [u8; 32],
     ) -> Result<()> {
-        estop::emergency_stop_with_proof(ctx, selector, proof, image_id, journal_digest)
+        estop::emergency_stop_with_proof(ctx, selector, proof)
     }
 
     pub fn transfer_ownership(

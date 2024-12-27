@@ -1,10 +1,48 @@
 /**
- * Risc0 Verifier Router and Initial Groth16 Verifier deployment script.
- * This script will build, deploy, and initialize the Risc0 Prover Router
- * and Initial Groth16 Verifier program on the Solana blockchain. You can modify how
- * it operates by setting environment variables. This program requires the deployment
- * address to have at least 5 SOL before it starts and the owner address that will
- * initialize the programs to have at least 1 SOL.
+ * Builds, deploys, and initializes the Risc0 Verification Router and Initial Groth16 Verifier program on the Solana blockchain.
+ * This script handles the complete deployment pipeline including building programs, deploying them on-chain, and
+ * performing initial setup.
+ *
+ * ## Environment Variables
+ *
+ * - `LOG_LEVEL` - (Optional) Log level for output
+ *                 ["silly" | "trace" | "debug" | "info" | "warn" | "error" | "fatal"]. Defaults to "info"
+ * - `MINIMUM_DEPLOY_BALANCE` - (Optional) Minimum SOL balance required in deployer account.
+ *                              Defaults to 6 SOL
+ * - `MINIMUM_BALANCE` - (Optional) Minimum SOL balance required in owner account. Defaults to 1 SOL
+ * - `VERIFIABLE` - (Optional) Whether to build programs with verification enabled ["true" | "false"].
+ *                  Defaults to false
+ * - `RPC` - (Optional) RPC endpoint for Solana. Defaults to "http://localhost:8899"
+ * - `RPC_SUBSCRIPTION` - (Optional) WebSocket endpoint for Solana. Defaults to "ws://localhost:8900"
+ * - `KEY_PAIR_FILE` - (Optional) Path to keypair file. Defaults to "~/.config/solana/id.json"
+ *
+ * ### Fireblocks Support (Optional)
+ * If using Fireblocks:
+ * - `FIREBLOCKS_PRIVATE_KEY_PATH` - Path to Fireblocks API private key
+ * - `FIREBLOCKS_API_KEY` - Fireblocks API key
+ * - `FIREBLOCKS_BASE_PATH` - (Optional) Fireblocks API base path ["sandbox" | "us" | "eu" | "eu2"]
+ *                            Defaults to "sandbox"
+ * - `FIREBLOCKS_ASSET_ID` - (Optional) Asset ID in Fireblocks. Defaults to "SOL_TEST"
+ * - `FIREBLOCKS_VAULT` - Vault account ID in Fireblocks
+ *
+ * ## Usage Example
+ *
+ * ```bash
+ * # Basic usage with local keypair
+ * yarn run deploy
+ *
+ * # With custom RPC endpoints
+ * RPC=https://api.mainnet-beta.solana.com \
+ * RPC_SUBSCRIPTION=wss://api.mainnet-beta.solana.com \
+ * yarn run deploy
+ *
+ * # With Fireblocks
+ * FIREBLOCKS_PRIVATE_KEY_PATH=~/fireblocks_secret.key \
+ * FIREBLOCKS_API_KEY=your-api-key \
+ * FIREBLOCKS_BASE_PATH=sandbox \
+ * FIREBLOCKS_VAULT=0 \
+ * yarn run deploy
+ * ```
  */
 import { build_cli, codama_cli, deploy_cli } from "./utils/deploy";
 import {

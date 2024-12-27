@@ -50,6 +50,14 @@ import { Logger } from "tslog";
 dotenv.config();
 const logger = createLogger();
 
+/**
+ * Creates a configured logger instance
+ *
+ * Initializes a logger with the appropriate log level based on environment
+ * configuration. Defaults to INFO level if not specified.
+ *
+ * @returns Configured Logger instance
+ */
 export function createLogger() {
   const logLevel = process.env.LOG_LEVEL || "info";
   let minLevel: number;
@@ -104,6 +112,17 @@ type BlockhashTransaction = BaseTransactionMessage &
   ITransactionMessageWithFeePayer<string> &
   TransactionMessageWithBlockhashLifetime;
 
+/**
+ * Arguments Interface for sending transactions with the sendTransaction
+ * utility function
+ *
+ * @template TTransaction - Type extending BlockhashTransaction
+ * @property rpc - Solana RPC client instance
+ * @property rpcSubscriptions - Solana RPC subscriptions instance
+ * @property feePayer - TransactionSigner that will pay for the transaction
+ * @property instruction - Transaction instruction to be executed
+ * @property commitment - Optional commitment level for transaction confirmation
+ */
 export interface SendTransactionParams<
   TTransaction extends BlockhashTransaction,
 > {
@@ -114,6 +133,17 @@ export interface SendTransactionParams<
   commitment?: Commitment;
 }
 
+/**
+ * Creates and sends a transaction with the provided instruction
+ *
+ * @template TTransaction - Type extending BlockhashTransaction
+ * @param params - Parameters for sending the transaction
+ * @returns Promise that resolves when transaction is confirmed
+ *
+ * # Security Considerations
+ * * Requires a valid feePayer with sufficient balance
+ * * Uses latest blockhash for transaction lifetime
+ */
 export async function sendTransaction<
   TTransaction extends BlockhashTransaction,
 >({
@@ -157,10 +187,32 @@ export async function sendTransaction<
   await sendAndConfirmTransaction(signedTransaction, { commitment });
 }
 
+/**
+ * Utility function to pause execution
+ *
+ * @param ms - Number of milliseconds to sleep
+ * @returns Promise that resolves after the specified delay
+ */
 export async function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+/**
+ * Changes the authority of a program
+ *
+ * Updates the upgrade authority of a program to a new address. Requires
+ * signature from current authority.
+ *
+ * @param rpc - Solana RPC client instance
+ * @param rpcSubscriptions - Solana RPC subscriptions instance
+ * @param programAddress - Address of program to modify
+ * @param currentAuthority - Current authority TransactionSigner
+ * @param newAuthority - New authority address
+ *
+ * # Security Considerations
+ * * Requires TransactionSigner from current authority
+ * * Updates program data account authority
+ */
 export async function changeAuthority(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
@@ -194,11 +246,24 @@ export async function changeAuthority(
   logger.info("Transaction confirmed, upgrade authority changed");
 }
 
-// Code taken from https://solana.com/developers/cookbook/development/load-keypair-from-file
+/**
+ * Loads the default Solana keypair
+ *
+ * Reads the default keypair from ~/.config/solana/id.json
+ *
+ * @returns KeyPairSigner loaded from default location
+ */
 export async function loadDefaultKeypair(): Promise<KeyPairSigner<string>> {
   return await loadKeypairFromFile("~/.config/solana/id.json");
 }
 
+/**
+ * Loads a keypair from a specified file path
+ *
+ * @param filePath - Path to keypair file
+ * @returns KeyPairSigner loaded from file
+ */
+// Code taken from https://solana.com/developers/cookbook/development/load-keypair-from-file
 export async function loadKeypairFromFile(
   filePath: string
 ): Promise<KeyPairSigner<string>> {
@@ -216,11 +281,27 @@ export async function loadKeypairFromFile(
   );
   return keypairSigner;
 }
+
+/**
+ * Interface representing a Program Derived Address with bump seed
+ *
+ * @property address - The derived address
+ * @property bump - Bump seed used in derivation
+ */
 export interface PDA {
   address: Address<string>;
   bump: ProgramDerivedAddressBump;
 }
 
+/**
+ * Derives the router PDA for a given router program
+ *
+ * @param routerAddress - Address of the router program
+ * @returns PDA info containing derived address and bump
+ *
+ * # Seeds
+ * * ["router"]
+ */
 export async function getRouterPda(
   routerAddress: Address<string>
 ): Promise<PDA> {
@@ -234,6 +315,16 @@ export async function getRouterPda(
   };
 }
 
+/**
+ * Derives the verifier entry PDA for a given selector
+ *
+ * @param routerAddress - Address of the router program
+ * @param selector - Selector number for the verifier
+ * @returns PDA info containing derived address and bump
+ *
+ * # Seeds
+ * * ["verifier", selector_bytes]
+ */
 export async function getVerifierEntryPda(
   routerAddress: Address<string>,
   selector: number
@@ -250,6 +341,15 @@ export async function getVerifierEntryPda(
   };
 }
 
+/**
+ * Derives the program data address for an upgradeable program
+ *
+ * @param programAddress - Address of the program
+ * @returns PDA info containing derived address and bump
+ *
+ * # Seeds
+ * * [program_address_bytes]
+ */
 export async function getProgramDataAddress(
   programAddress: Address<string>
 ): Promise<PDA> {
@@ -264,6 +364,13 @@ export async function getProgramDataAddress(
   };
 }
 
+/**
+ * Gets the local keypair for use in scripts based upon either the environment values
+ * or the system default.
+ *
+ * @note Uses KEY_PAIR_FILE environment variable
+ * @returns KeyPairSigner for signing transaction on the local machine
+ */
 export async function getLocalKeypair(): Promise<KeyPairSigner<string>> {
   const keyfile = process.env.KEY_PAIR_FILE;
   if (keyfile) {
@@ -272,6 +379,14 @@ export async function getLocalKeypair(): Promise<KeyPairSigner<string>> {
   return loadDefaultKeypair();
 }
 
+/**
+ * Gets the configured transaction signer
+ *
+ * Returns either a Fireblocks signer if configured, or falls back
+ * to local keypair.
+ *
+ * @returns TransactionSigner to use for signing
+ */
 export async function getTransactionSigner(): Promise<TransactionSigner> {
   if (usingFireblocks()) {
     const signer = await getFireblocksSigner();
@@ -282,6 +397,12 @@ export async function getTransactionSigner(): Promise<TransactionSigner> {
   return await getLocalKeypair();
 }
 
+/**
+ * Gets the router program address from environment or defaults
+ *
+ * @notice Uses ROUTER_ADDRESS environment variable
+ * @returns Address of the router program to use
+ */
 export function getRouterAddress(): Address<string> {
   const router_env = process.env.ROUTER_ADDRESS;
   if (router_env) {
@@ -293,6 +414,11 @@ export function getRouterAddress(): Address<string> {
   return VERIFIER_ROUTER_PROGRAM_ADDRESS;
 }
 
+/**
+ * Gets the verifier program address from environment or defaults
+ * @notice Uses VERIFIER_ADDRESS environment variable
+ * @returns Address of the verifier program to use
+ */
 export function getVerifierAddress(): Address<string> {
   const verifier_env = process.env.VERIFIER_ADDRESS;
   if (verifier_env) {
@@ -304,6 +430,12 @@ export function getVerifierAddress(): Address<string> {
   return GROTH16_VERIFIER_PROGRAM_ADDRESS;
 }
 
+/**
+ * Gets the new owner address from environment
+ *
+ * @returns Address specified as new owner
+ * @throws If NEW_OWNER environment variable is not set
+ */
 export function getNewOwnerAddress(): Address<string> {
   const newOwner_env = process.env.NEW_OWNER;
   if (!newOwner_env) {
@@ -314,6 +446,13 @@ export function getNewOwnerAddress(): Address<string> {
   return address(newOwner_env);
 }
 
+/**
+ * Loads the owner address from environment or defaults to the
+ * local keypair.
+ *
+ * @notice Uses ROUTER_OWNER environment variable
+ * @returns Address of the owner to use
+ */
 export async function loadOwnerAddress(): Promise<Address<string>> {
   const owner = process.env.ROUTER_OWNER;
   if (owner) {
@@ -324,6 +463,22 @@ export async function loadOwnerAddress(): Promise<Address<string>> {
   return keypair.address;
 }
 
+/**
+ * Multiplies a floating point number with a bigint while maintaining precision
+ *
+ * Used for accurate SOL calculations by converting to Decimal for the multiplication
+ * and then back to bigint. Handles the conversion of SOL amounts to lamports.
+ *
+ * @param float - Floating point multiplier
+ * @param value - Bigint value to multiply
+ * @returns Result as bigint with correct precision
+ *
+ * # Example
+ * ```typescript
+ * // Convert 1.5 SOL to lamports
+ * const lamports = lamports(floatMulSol(1.5, LAMPORTS_PER_SOL))
+ * ```
+ */
 function floatMulSol(float: number, value: bigint): bigint {
   const floatDecimal = new Decimal(float);
   const valueDecimal = new Decimal(value.toString());
@@ -332,22 +487,50 @@ function floatMulSol(float: number, value: bigint): bigint {
   return BigInt(roundedResult);
 }
 
+/**
+ * Gets the minimum balance required for deployment
+ * defaults to 6 SOL
+ *
+ * @notice Uses the MINIMUM_DEPLOY_BALANCE environment variable
+ * @returns Lamports representing minimum required balance
+ */
 export function loadMinimumDeployBalance(): Lamports {
   const balance_env = process.env.MINIMUM_DEPLOY_BALANCE;
   const balance = parseFloat(balance_env) || 6;
   return lamports(floatMulSol(balance, LAMPORTS_PER_SOL));
 }
 
+/**
+ * Gets the minimum balance required for script execution
+ * defaults to 1 SOL
+ *
+ * @notice Uses the MINIMUM_BALANCE environment variable
+ * @returns Lamports representing minimum required balance
+ */
 export function loadMinimumScriptBalance(): Lamports {
   const balance_env = process.env.MINIMUM_BALANCE;
   const balance = parseFloat(balance_env) || 1;
   return lamports(floatMulSol(balance, LAMPORTS_PER_SOL));
 }
 
+/**
+ * Checks if Fireblocks signing has been configured
+ *
+ * @returns true if Fireblocks credentials are configured
+ */
 export function usingFireblocks(): boolean {
   return getFireblocksCredentials() !== null;
 }
 
+/**
+ * Gets Fireblocks configuration from environment
+ * @notice Uses the FIREBLOCKS_PRIVATE_KEY_PATH environment variable
+ * @notice Uses the FIREBLOCKS_API_KEY environment variable
+ * @notice Uses the FIREBLOCKS_VAULT environment variable
+ * @notice Uses the FIREBLOCKS_BASE_PATH *optional* environment variable
+ * @notice Uses the FIREBLOCKS_ASSET_ID *optional* environment variable
+ * @returns FireblocksConfig if all required variables are set, null otherwise
+ */
 export async function getFireblocksCredentials(): Promise<FireblocksConfig | null> {
   const apiSecretPath = process.env.FIREBLOCKS_PRIVATE_KEY_PATH;
   const apiKey = process.env.FIREBLOCKS_API_KEY;
@@ -410,6 +593,12 @@ export async function getFireblocksCredentials(): Promise<FireblocksConfig | nul
   };
 }
 
+/**
+ * Checks if verifiable builds are enabled
+ *
+ * @notice Uses the VERIFIABLE environment variable
+ * @returns true if verifiable builds are enabled
+ */
 export function verifiable(): boolean {
   const verifiable_env = process.env.VERIFIABLE;
   if (verifiable_env === undefined) {
@@ -421,6 +610,12 @@ export function verifiable(): boolean {
   return verifiable;
 }
 
+/**
+ * Interface for Solana RPC connections
+ *
+ * @property rpc - Standard RPC connection
+ * @property rpc_subscription - WebSocket subscription connection
+ */
 export interface SolanaRpcInformation {
   rpc: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
   rpc_subscription: RpcSubscriptionsFromTransport<
@@ -429,6 +624,16 @@ export interface SolanaRpcInformation {
   >;
 }
 
+/**
+ * Parses a string into a boolean value
+ *
+ * Converts various string representations to boolean values.
+ * Returns true for "true", "on", and "yes" (case-insensitive).
+ * Returns false for empty strings or any other values.
+ *
+ * @param value - String to parse
+ * @returns Parsed boolean value
+ */
 function parseBoolean(value: string): boolean {
   if (!value) {
     return false;
@@ -436,6 +641,20 @@ function parseBoolean(value: string): boolean {
   return ["true", "on", "yes"].includes(value.toLowerCase());
 }
 
+/**
+ * Creates RPC connections to Solana node
+ *
+ * Initializes both standard RPC and WebSocket subscription connections
+ * using configuration from environment.
+ *
+ * Defaults to "http://localhost:8899" for the rpc entry and "ws://localhost:8900"
+ * for the rpc_subscription address
+ *
+ *
+ * @notice Uses the RPC environment variable
+ * @notice Uses the RPC_SUBSCRIPTION environment variable
+ * @returns Configured RPC connections
+ */
 export function createRpc(): SolanaRpcInformation {
   const rpcAddress = process.env.RPC || "http://localhost:8899";
   const subscriptionAddress =

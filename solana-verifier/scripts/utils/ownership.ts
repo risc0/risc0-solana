@@ -17,6 +17,27 @@ import { createLogger, getRouterPda, sendTransaction, sleep } from "./utils";
 
 const logger = createLogger();
 
+/**
+ * Initiates the transfer of router ownership to a new address
+ *
+ * This is part of a two-step ownership transfer process:
+ * 1. Current owner initiates transfer by calling this function
+ * 2. New owner must accept the transfer by calling acceptOwnership
+ *
+ * The transfer remains pending until accepted or cancelled.
+ *
+ * @param {Rpc<SolanaRpcApi>} rpc - RPC connection to Solana
+ * @param {RpcSubscriptions<SolanaRpcSubscriptionsApi>} rpcSubscriptions - WebSocket connection for transaction confirmation
+ * @param {Address<string>} routerAddress - Address of the verifier router program
+ * @param {TransactionSigner} owner - Current owner initiating the transfer
+ * @param {Address<string>} newOwner - Address that will receive ownership rights
+ *
+ * @returns {Promise<void>} Resolves when transfer initiation is confirmed
+ * @throws If caller is not the current owner or if transaction fails
+ *
+ * @security Requires current owner's signature
+ * @see acceptOwnership - Required follow-up action by new owner
+ */
 export async function transferOwnership(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
@@ -56,6 +77,25 @@ export async function transferOwnership(
   );
 }
 
+/**
+ * Completes a pending ownership transfer by the new owner accepting the role
+ *
+ * Second step of the two-step ownership transfer process. The new owner must
+ * explicitly accept ownership by calling this function. Upon acceptance:
+ * - Previous owner loses all administrative rights
+ * - New owner gains full administrative control
+ *
+ * @param {Rpc<SolanaRpcApi>} rpc - RPC connection to Solana
+ * @param {RpcSubscriptions<SolanaRpcSubscriptionsApi>} rpcSubscriptions - WebSocket connection for transaction confirmation
+ * @param {Address<string>} routerAddress - Address of the verifier router program
+ * @param {TransactionSigner} newOwner - The pending owner accepting the transfer
+ *
+ * @returns {Promise<void>} Resolves when ownership transfer is completed
+ * @throws If caller is not the pending owner or if no transfer is pending
+ *
+ * @security Changes critical program authority
+ * @notice This action gives full administrative control to the new owner
+ */
 export async function acceptOwnership(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
@@ -91,6 +131,25 @@ export async function acceptOwnership(
   );
 }
 
+/**
+ * Cancels a pending ownership transfer
+ *
+ * Can be called by either the current owner or the pending owner to
+ * cancel a pending ownership transfer. After cancellation:
+ * - Current owner retains all rights
+ * - Pending owner can no longer accept the transfer
+ * - A new transfer must be initiated for any future ownership change
+ *
+ * @param {Rpc<SolanaRpcApi>} rpc - RPC connection to Solana
+ * @param {RpcSubscriptions<SolanaRpcSubscriptionsApi>} rpcSubscriptions - WebSocket connection for transaction confirmation
+ * @param {Address<string>} routerAddress - Address of the verifier router program
+ * @param {TransactionSigner} authority - Either current owner or pending owner
+ *
+ * @returns {Promise<void>} Resolves when cancellation is confirmed
+ * @throws If caller is neither current nor pending owner, or if no transfer is pending
+ *
+ * @notice Can be called by either current or pending owner
+ */
 export async function cancelTransfer(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
@@ -128,6 +187,28 @@ export async function cancelTransfer(
   );
 }
 
+/**
+ * Permanently renounces ownership of the router program
+ *
+ * CRITICAL: This is an irreversible action that permanently removes owner authority.
+ * After renouncement:
+ * - No new verifiers can be added
+ * - Emergency stops can only be triggered by proof of exploit
+ * - No future owner can be set
+ *
+ * Includes a 5-second delay to prevent accidental execution.
+ *
+ * @param {Rpc<SolanaRpcApi>} rpc - RPC connection to Solana
+ * @param {RpcSubscriptions<SolanaRpcSubscriptionsApi>} rpcSubscriptions - WebSocket connection for transaction confirmation
+ * @param {Address<string>} routerAddress - Address of the verifier router program
+ * @param {TransactionSigner} owner - Current owner renouncing their rights
+ *
+ * @returns {Promise<void>} Resolves when renouncement is confirmed
+ * @throws If caller is not the current owner or if transaction fails
+ *
+ * @security This is an irreversible action
+ * @warning After this action, certain program features become permanently unavailable
+ */
 export async function renounceOwnership(
   rpc: Rpc<SolanaRpcApi>,
   rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
