@@ -146,37 +146,6 @@ VERIFIER_ADDRESS=<address> yarn run add
 yarn run estop  # Follow prompts
 ```
 
-### Emergency Stop Mechanisms
-
-#### Owner-Triggered Stop
-```bash
-yarn run estop
-# Enter selector when prompted
-# Confirm with "YES CALL EMERGENCY STOP"
-```
-
-#### Proof-Based Stop
-Submit a proof demonstrating exploitation to trigger automatic shutdown:
-```rust
-verifier_router::cpi::emergency_stop_with_proof(
-    context,
-    selector,
-    exploitation_proof
-)
-```
-
-## Security Considerations
-
-1. **Proof Verification**:
-   - Always validate journal digests
-   - Check image IDs match expected values
-   - Verify that journal outputs are valid for your use case
-
-2. **Account Validation**:
-   - Verify PDA derivations
-   - Check verifier program addresses
-   - Validate selectors and authorities
-
 ## Development Tools
 
 ### Scripts
