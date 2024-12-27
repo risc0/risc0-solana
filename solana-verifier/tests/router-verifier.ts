@@ -53,9 +53,7 @@ import { use as chaiUse, expect } from "chai";
 import deepEqualInAnyOrder from "deep-equal-in-any-order";
 import { GROTH16_VERIFIER_PROGRAM_ADDRESS } from "../scripts/groth16";
 import { TEST_BAD_VERIFIER_PROGRAM_ADDRESS } from "../scripts/bad-verifier";
-import {
-  SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,
-} from "../scripts/loaderV3";
+import { SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS } from "../scripts/loaderV3";
 
 import chaiAsPromised from "chai-as-promised";
 
@@ -66,7 +64,7 @@ async function expectError(
   promise: Promise<any>,
   errorType: string,
   errorMessage?: string,
-  log: boolean = false,
+  log: boolean = false
 ): Promise<void> {
   try {
     await promise;
@@ -96,7 +94,7 @@ describe("verifier-router", () => {
   let notOwner: TransactionPartialSigner;
   let sendTx: <TTransaction extends BaseTransactionMessage>(
     instruction: TTransaction["instructions"][number],
-    authority?: TransactionPartialSigner,
+    authority?: TransactionPartialSigner
   ) => Promise<void>;
 
   // Test Proof for the Test Bad Verifier
@@ -131,21 +129,21 @@ describe("verifier-router", () => {
 
     // Calculate the PDA for the Router Program
     const routerAddressPDA = await getRouterPda(
-      VERIFIER_ROUTER_PROGRAM_ADDRESS,
+      VERIFIER_ROUTER_PROGRAM_ADDRESS
     );
     routerAddress = routerAddressPDA.address;
 
     // Calculate the PDA for the Groth16 Verifier Program
     grothPda = await getVerifierEntryPda(
       VERIFIER_ROUTER_PROGRAM_ADDRESS,
-      GROTH16_SELECTOR,
+      GROTH16_SELECTOR
     );
     grothPDAAddress = grothPda.address;
 
     console.log(`Groth Verifier (Verifier Entry) Address: ${grothPDAAddress}`);
 
     const grothProgramData = await getProgramDataAddress(
-      GROTH16_VERIFIER_PROGRAM_ADDRESS,
+      GROTH16_VERIFIER_PROGRAM_ADDRESS
     );
 
     grothProgramDataAddress = grothProgramData.address;
@@ -154,22 +152,22 @@ describe("verifier-router", () => {
     // Calculate the PDA for the TestBadVerifier Program
     badVerifierPda = await getVerifierEntryPda(
       VERIFIER_ROUTER_PROGRAM_ADDRESS,
-      TEST_BAD_SELECTOR,
+      TEST_BAD_SELECTOR
     );
     badVerifierPDAAddress = badVerifierPda.address;
 
     console.log(
-      `Bad Verifier (Verifier Entry) Address: ${badVerifierPDAAddress}`,
+      `Bad Verifier (Verifier Entry) Address: ${badVerifierPDAAddress}`
     );
 
     const badVerifierProgramData = await getProgramDataAddress(
-      TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
+      TEST_BAD_VERIFIER_PROGRAM_ADDRESS
     );
 
     badVerifierProgramDataAddress = badVerifierProgramData.address;
 
     console.log(
-      `Bad Verifier Program Data Address: ${badVerifierProgramDataAddress}`,
+      `Bad Verifier Program Data Address: ${badVerifierProgramDataAddress}`
     );
   });
 
@@ -226,7 +224,7 @@ describe("verifier-router", () => {
 
     await expectError(
       sendTx(transactionInstruction),
-      "VerifierInvalidAuthority",
+      "VerifierInvalidAuthority"
     );
   });
 
@@ -236,11 +234,11 @@ describe("verifier-router", () => {
       rpcSubscriptions,
       TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
       deployerKeyPair,
-      routerAddress,
+      routerAddress
     );
   });
 
-  it("Sholud not allow a user to pass in a different ProgramData account then the one for the verifier being added", async () => {
+  it("Should not allow a user to pass in a different ProgramData account then the one for the verifier being added", async () => {
     const addBadVerifierInstruction = getAddVerifierInstruction({
       authority: owner,
       router: routerAddress,
@@ -253,7 +251,7 @@ describe("verifier-router", () => {
     await expectError(
       sendTx(addBadVerifierInstruction),
       "ConstraintSeeds",
-      "Expected to get a Constraint Seeds error, but did not",
+      "Expected to get a Constraint Seeds error, but did not"
     );
   });
 
@@ -263,7 +261,7 @@ describe("verifier-router", () => {
       rpcSubscriptions,
       GROTH16_VERIFIER_PROGRAM_ADDRESS,
       deployerKeyPair,
-      routerAddress,
+      routerAddress
     );
   });
 
@@ -280,7 +278,7 @@ describe("verifier-router", () => {
     await expectError(
       sendTx(addGrothInstruction),
       "NotOwner",
-      "A non-owner was able to add a verifier to the router",
+      "A non-owner was able to add a verifier to the router"
     );
   });
 
@@ -297,7 +295,7 @@ describe("verifier-router", () => {
     await expectError(
       sendTx(addBadVerifierInstruction),
       "SelectorInvalid",
-      "Was expecting an Invalid Selector Error",
+      "Was expecting an Invalid Selector Error"
     );
   });
 
@@ -332,7 +330,7 @@ describe("verifier-router", () => {
     const grothAccount = await fetchVerifierEntry(rpc, grothPDAAddress);
     expect(grothAccount.data.selector).to.equal(GROTH16_SELECTOR);
     expect(grothAccount.data.verifier).to.equal(
-      GROTH16_VERIFIER_PROGRAM_ADDRESS,
+      GROTH16_VERIFIER_PROGRAM_ADDRESS
     );
 
     await sendTx(addBadVerifierInstruction);
@@ -340,7 +338,7 @@ describe("verifier-router", () => {
     const badAccount = await fetchVerifierEntry(rpc, badVerifierPDAAddress);
     expect(badAccount.data.selector).to.equal(TEST_BAD_SELECTOR);
     expect(badAccount.data.verifier).to.equal(
-      TEST_BAD_VERIFIER_PROGRAM_ADDRESS,
+      TEST_BAD_VERIFIER_PROGRAM_ADDRESS
     );
 
     routerAccount = await fetchVerifierRouter(rpc, routerAddress);
@@ -379,7 +377,7 @@ describe("verifier-router", () => {
     await expectError(
       sendTx(verifyInstruction),
       "VerificationError",
-      "Expected to hit a Verification Error but the transaction did not error out.",
+      "Expected to hit a Verification Error but the transaction did not error out."
     );
   });
 
@@ -400,7 +398,7 @@ describe("verifier-router", () => {
     await expectError(
       sendTx(estopProofInstruction),
       "VerificationError",
-      "Was expecting the estop call to fail but it did not",
+      "Was expecting the estop call to fail but it did not"
     );
   });
 
@@ -436,7 +434,7 @@ describe("verifier-router", () => {
 
     const verifierEntry = await fetchMaybeVerifierEntry(
       rpc,
-      badVerifierPDAAddress,
+      badVerifierPDAAddress
     );
     expect(verifierEntry.exists).to.equal(false);
 
