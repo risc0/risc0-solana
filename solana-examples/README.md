@@ -165,5 +165,5 @@ solana-test-validator -r
 
 4. Verify program deployment:
 ```bash
-solana program show --programs
+solana program show --programs --all
 ```
