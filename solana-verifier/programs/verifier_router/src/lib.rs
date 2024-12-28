@@ -10,7 +10,7 @@ use estop::*;
 use router::*;
 use state::*;
 
-declare_id!("DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa");
+declare_id!("6QnGZ6qUAT5DnRLZPs8seCVfZkFnqtJQspqLnTfscnDM");
 
 /// Verifier Router Program for Anchor
 ///

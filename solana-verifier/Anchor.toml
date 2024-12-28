@@ -5,9 +5,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-groth_16_verifier = "Hs9zHQshowrEM4tyRCv9vwcPkZSBbU1cVCUGLwZmVawa"
-test_bad_verifier = "AdneDeXEyPk72VfLQMrQBTjuQj2fuBXm9efJdcB7eE3r"
-verifier_router = "DNzgxRPwrWW7ZVTVWr5zhhHAJMjzs3B17eVpZVJfvzHa"
+groth_16_verifier = "GwVHo4q6vcPVPiKzRHagxVCHF9GnfmnBwA2KSoKd3Ev1"
+test_bad_verifier = "2wF5cbppQwdAEr13LUHzqnQ9tZ95YizhLtH65JkcZjnP"
+verifier_router = "6QnGZ6qUAT5DnRLZPs8seCVfZkFnqtJQspqLnTfscnDM"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,14 +17,14 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
+accept = "yarn run ts-node scripts/acceptOwnership.ts"
+add = "yarn run ts-node scripts/addVerifier.ts"
 client = "yarn run ts-node scripts/codma.ts"
 deploy = "yarn run ts-node scripts/deploy.ts"
 estop = "yarn run ts-node scripts/estop.ts"
 renounce = "yarn run ts-node scripts/renounceOwnership.ts"
-transfer = "yarn run ts-node scripts/transferOwnership.ts"
-add = "yarn run ts-node scripts/addVerifier.ts"
-accept = "yarn run ts-node scripts/acceptOwnership.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+transfer = "yarn run ts-node scripts/transferOwnership.ts"
 
 [test]
 startup_wait = 5000

@@ -11,13 +11,16 @@ use anchor_client::{
     solana_sdk::{signature::Keypair, signer::Signer},
     Client, Cluster,
 };
+use borsh::to_vec;
 use groth_16_verifier::client::receipt_to_proof;
 use methods::{HELLO_GUEST_ELF, HELLO_GUEST_ID};
+use risc0_zkvm::sha::Digestible;
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts};
+use solana_examples::{accounts, instruction, ProgramData};
 use std::sync::Arc;
 use tracing::{debug, info, trace};
-
-use solana_examples::{accounts, instruction, ProgramData};
+// A shared library that contains the inputs / outputs of our guest
+use shared::IncrementNonceArguments;
 
 type PROGRAM = Program<Arc<Keypair>>;
 
@@ -52,7 +55,11 @@ async fn init(user: Arc<Keypair>, example_program: &PROGRAM, program_data_addres
     info!("Transaction Successful, our program is initialized and now ready for verifying proofs");
 }
 
-async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey) {
+async fn increment_nonce(
+    user: Arc<Keypair>,
+    example_program: PROGRAM,
+    program_data_address: Pubkey,
+) {
     info!("Attempting to increment program nonce");
 
     let program_data: ProgramData = example_program
@@ -64,17 +71,17 @@ async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey)
 
     info!("Current Nonce value is {nonce}");
 
-    // Increment the current nonce for our transaction to be accepted
-    let input: u32 = nonce + 1;
-
-    info!("Constructing proof to increment nonce value to {input}");
     let prover = default_prover();
 
-    let env = ExecutorEnv::builder()
-        .write(&input)
-        .unwrap()
-        .build()
-        .unwrap();
+    let nonce_arguments = IncrementNonceArguments {
+        account: user.pubkey().to_bytes(),
+        nonce,
+    };
+
+    // We serialize with Borsh to get a format that is more commonly used in Solana
+    let input = to_vec(&nonce_arguments).expect("Could not serialize proof nonce arguments");
+
+    let env = ExecutorEnv::builder().write_slice(&input).build().unwrap();
 
     // Proof information by proving the specified ELF binary.
     // This struct contains the receipt along with statistics about execution of the guest
@@ -84,6 +91,10 @@ async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey)
         .unwrap();
 
     let receipt = prove_info.receipt;
+
+    let journal_digest = receipt.journal.digest();
+
+    debug!("Journal digest is {journal_digest:?}");
 
     info!("Groth 16 proof for nonce increment transaction successfully created, submitting transaction to the program.");
 
@@ -104,6 +115,8 @@ async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey)
         &verifier_router::ID,
     );
 
+    let output = receipt.journal.bytes;
+
     debug!("Using the address: {verifier_entry_address} as the Verifier Entry Account");
 
     example_program
@@ -112,14 +125,16 @@ async fn increment_nonce(example_program: PROGRAM, program_data_address: Pubkey)
             program_data: program_data_address,
             router: verifier_router::ID,
             router_account: router_pda_address,
+            prover: user.pubkey(),
             verifier_entry: verifier_entry_address,
             system_program: SYSTEM_PROGRAM_ID,
             verifier_program: groth_16_verifier::ID,
         })
         .args(instruction::IncrementNonce {
-            journal_nonce: input,
+            journal_outputs: output,
             proof: proof,
         })
+        .signer(&user)
         .send()
         .await
         .expect("Unable to send increment nonce transaction");
@@ -195,7 +210,7 @@ async fn main() {
 
     if program_data.is_err() {
         info!("Could not find program data account, could be first run, initializing program!");
-        init(user, &example_program, program_data_address).await;
+        init(user.clone(), &example_program, program_data_address).await;
     }
-    increment_nonce(example_program, program_data_address).await
+    increment_nonce(user, example_program, program_data_address).await
 }

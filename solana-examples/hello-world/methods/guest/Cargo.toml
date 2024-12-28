@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 risc0-zkvm = { version = "1.2.0", default-features = false, features = ['std'] }
+borsh = { version = "0.10.3" }
+shared = { path = "../../../shared" }

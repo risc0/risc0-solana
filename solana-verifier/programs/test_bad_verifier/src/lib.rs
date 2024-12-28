@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use groth_16_verifier::Proof;
 
-declare_id!("AdneDeXEyPk72VfLQMrQBTjuQj2fuBXm9efJdcB7eE3r");
+declare_id!("2wF5cbppQwdAEr13LUHzqnQ9tZ95YizhLtH65JkcZjnP");
 
 #[error_code]
 pub enum VerifierError {

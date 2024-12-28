@@ -388,7 +388,7 @@ export async function getLocalKeypair(): Promise<KeyPairSigner<string>> {
  * @returns TransactionSigner to use for signing
  */
 export async function getTransactionSigner(): Promise<TransactionSigner> {
-  if (usingFireblocks()) {
+  if (await usingFireblocks()) {
     const signer = await getFireblocksSigner();
     if (signer !== null) {
       return signer;
@@ -518,8 +518,8 @@ export function loadMinimumScriptBalance(): Lamports {
  *
  * @returns true if Fireblocks credentials are configured
  */
-export function usingFireblocks(): boolean {
-  return getFireblocksCredentials() !== null;
+export async function usingFireblocks(): Promise<boolean> {
+  return (await getFireblocksCredentials()) !== null;
 }
 
 /**
@@ -534,9 +534,14 @@ export function usingFireblocks(): boolean {
 export async function getFireblocksCredentials(): Promise<FireblocksConfig | null> {
   const apiSecretPath = process.env.FIREBLOCKS_PRIVATE_KEY_PATH;
   const apiKey = process.env.FIREBLOCKS_API_KEY;
-  const basePath_env = process.env.FIREBLOCKS_BASE_PATH;
+  const basePath_env = process.env.FIREBLOCKS_BASE_PATH || "";
   const assetId = process.env.FIREBLOCKS_ASSET_ID || "SOL_TEST";
   const vaultAccountId = process.env.FIREBLOCKS_VAULT;
+  // If at least one of the fireblocks credential values are set
+  // AND one or more of the required values is not set
+  if (!apiSecretPath && !apiKey && !vaultAccountId) {
+    return null;
+  }
   const basePath = parseBasePath(basePath_env);
   if (!apiSecretPath || !apiKey || !vaultAccountId) {
     logger.warn("FIREBLOCKS VARIABLES USED BUT NOT ALL WHERE INCLUDED:");

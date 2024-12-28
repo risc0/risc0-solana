@@ -25,3 +25,4 @@ curve25519-dalek = { git = "https://github.com/ivs/curve25519-dalek", branch = "
 anchor-lang = "0.30.1"
 verifier_router = { path = "../../../solana-verifier/programs/verifier_router", features = ["cpi"] }
 methods = { path = "../../hello-world/methods"}
+shared = { path = "../../shared" }

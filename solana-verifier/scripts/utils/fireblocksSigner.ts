@@ -235,7 +235,7 @@ export async function createSignerFromFireblocksConfig(
  * - FIREBLOCKS_ASSET_ID (defaults to "SOL_TEST")
  */
 export async function getFireblocksSigner(): Promise<FireBlocksSigner | null> {
-  if (!usingFireblocks()) {
+  if (!(await usingFireblocks())) {
     return null;
   }
   logger.info("Something is using the fireblocks signer");
