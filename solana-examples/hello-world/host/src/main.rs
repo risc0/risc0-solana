@@ -26,12 +26,47 @@ type PROGRAM = Program<Arc<Keypair>>;
 
 const SELECTOR: u32 = 1; // Going to assume only one verifier in our test
 
-// Used to convert our image_id from a [u32; 8] into a [u8; 32] as expected of our groth verifier
+/// Converts a RISC Zero image ID from [u32; 8] format to [u8; 32] format.
+///
+/// This conversion is necessary because RISC Zero generates image IDs as 8 32-bit integers,
+/// but the Solana verifier expects a 32-byte array.
+///
+/// # Arguments
+///
+/// * `input` - The RISC Zero image ID as [u32; 8]
+///
+/// # Returns
+///
+/// * `[u8; 32]` - The converted image ID as a 32-byte array
 fn convert_array(input: [u32; 8]) -> [u8; 32] {
     let bytes: Vec<u8> = input.iter().flat_map(|&x| x.to_le_bytes()).collect();
     bytes.try_into().unwrap()
 }
 
+/// Initializes the Solana program by setting up its data account.
+///
+/// This function creates and initializes the program data account with:
+/// - Initial nonce value of 0
+/// - Specified image ID from the Risc0 Guest ID
+/// - Selector for the verifier router
+///
+/// # Notice
+/// 
+/// This function can only be called once, if the program data has been previously initialized 
+/// it will panic. 
+/// 
+/// # Arguments
+///
+/// * `user` - Keypair used for signing the initialization transaction and paying rent
+/// * `example_program` - Address to the deployed Solana program
+/// * `program_data_address` - PDA address where program data will be stored
+///
+/// # Panics
+///
+/// This function will panic if:
+/// - Account already exists
+/// - Transaction submission fails
+/// - Insufficient balance for account creation
 async fn init(user: Arc<Keypair>, example_program: &PROGRAM, program_data_address: Pubkey) {
     info!("Attempting to initilize program data");
 
@@ -55,6 +90,26 @@ async fn init(user: Arc<Keypair>, example_program: &PROGRAM, program_data_addres
     info!("Transaction Successful, our program is initialized and now ready for verifying proofs");
 }
 
+/// Increments the program's nonce value by generating and submitting a zero-knowledge proof.
+///
+/// This function:
+/// 1. Reads current nonce from program data on the Solana blockchain
+/// 2. Generates a ZK proof from the guest program
+/// 3. Submits the proof to the example Solana program for verification
+///
+/// # Arguments
+///
+/// * `user` - Keypair used for signing transactions
+/// * `example_program` - Address to the deployed Solana example program
+/// * `program_data_address` - PDA Address of the program's data account from the Solana example program
+///
+/// # Panics
+///
+/// This function will panic if:
+/// - Its unable to fetch current program data from the program_data_address
+/// - Proof generation fails
+/// - Transaction submission fails
+/// - Proof verification fails on-chain
 async fn increment_nonce(
     user: Arc<Keypair>,
     example_program: PROGRAM,
@@ -142,6 +197,30 @@ async fn increment_nonce(
     info!("Transaction successfully, nonce incremented");
 }
 
+/// Main entry point for the host program that demonstrates zero-knowledge proof integration with Solana.
+/// 
+/// The program will:
+/// - Create a new keypair for transactions
+/// - Request an airdrop
+/// - Wait for airdrop confirmation
+/// - Initialize program data if it doesn't exist
+/// - Execute nonce increment with proof verification
+///
+/// # Panics
+///
+/// Will panic if:
+/// - Unable to connect to Solana cluster
+/// - Airdrop request fails
+/// - Program initialization fails
+/// - Proof generation or verification fails
+///
+/// # Environment
+///
+/// Requires:
+/// - Local Solana validator running
+/// - Verifier router program deployed
+/// - Example program deployed
+/// - RUST_LOG environment variable for logging (optional)
 #[tokio::main]
 async fn main() {
     // Initialize tracing. In order to view logs, run `RUST_LOG=info cargo run`
