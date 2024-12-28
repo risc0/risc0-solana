@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_examples = "AtDe6MQUn7LyiYbHFYe2AyugciHfWnyozstekf7wMFMq"
+solana_examples = "5KaqzRRFNVecL4Sgkbjus4j4ZdAWc8oV7Vpz4ZTUEAn8"
 
 [registry]
 url = "https://api.apr.dev"

@@ -7,7 +7,7 @@ use verifier_router::program::VerifierRouter as VerifierRouterProgram;
 use verifier_router::router::Proof;
 use verifier_router::state::{VerifierEntry, VerifierRouter};
 
-declare_id!("AtDe6MQUn7LyiYbHFYe2AyugciHfWnyozstekf7wMFMq");
+declare_id!("5KaqzRRFNVecL4Sgkbjus4j4ZdAWc8oV7Vpz4ZTUEAn8");
 
 #[program]
 pub mod solana_examples {

@@ -50,6 +50,7 @@ any non-deployment actions require an account with a 1 SOL minimum balance.
 1. Deploy the router and initial verifier:
 ```bash
 anchor keys sync
+anchor build
 yarn run client
 yarn run deploy
 ```

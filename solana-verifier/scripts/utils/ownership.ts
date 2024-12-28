@@ -46,7 +46,7 @@ export async function transferOwnership(
   newOwner: Address<string>
 ) {
   logger.info(
-    `Transferring ownership from ${owner} to new owner: ${newOwner} for router ${routerAddress}`
+    `Transferring ownership from ${owner.address} to new owner: ${newOwner} for router ${routerAddress}`
   );
 
   const routerPda = await getRouterPda(routerAddress);

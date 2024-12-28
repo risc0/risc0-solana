@@ -24,7 +24,7 @@ pub struct Initialize<'info> {
        seeds = [b"router"],
        bump,
        payer = authority,
-       space = 8 + 32 + 33 + 4 
+       space = 8 + 33 + 33 + 4 
    )]
    pub router: Account<'info, VerifierRouter>,
    

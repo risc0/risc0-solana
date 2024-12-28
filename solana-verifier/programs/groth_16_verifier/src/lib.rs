@@ -12,7 +12,7 @@ mod vk;
 
 pub use vk::{VerificationKey, VERIFICATION_KEY};
 
-declare_id!("GwVHo4q6vcPVPiKzRHagxVCHF9GnfmnBwA2KSoKd3Ev1");
+declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
 const ALLOWED_CONTROL_ROOT: &str =
     "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
