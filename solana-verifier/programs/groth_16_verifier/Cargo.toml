@@ -19,23 +19,9 @@ client = ["risc0-zkvm"]
 
 [dependencies]
 anchor-lang = "0.30.1"
-anyhow = "1.0.86"
-ark-bn254 = "0.4.0"
-ark-serialize = "0.4.2"
-borsh = "1.5.1"
 hex = "0.4.3"
 num-bigint = "0.4.6"
-num-traits = "0.2.19"
 risc0-zkp = { version = "1.2.0", default-features = false } 
 serde = { version = "1.0.204", features = ["derive"] }
 solana-program = "=2.1.6"
 risc0-zkvm = { version = "1.2.0", default-features = false, optional = true} 
-
-# Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
-[patch.crates-io]
-curve25519-dalek = { git = "https://github.com/ivs/curve25519-dalek", branch = "rustls-dep-hell" }
-
-
-[dev-dependencies]
-serde_json = "1.0.120"
-arrayvec = "0.7.4"

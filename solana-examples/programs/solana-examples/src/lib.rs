@@ -15,7 +15,7 @@ pub mod solana_examples {
 
     use super::*;
 
-    /// This allows us to initialize our program by setting the selector of the Risc0 Router to use for
+    /// This allows us to initialize our program by setting the selector of the RISC Zero Router to use for
     /// proofs, the image_id of our own example program, and by setting the default value for our internal
     /// nonce. We may want to allow changing the selector so that we can use different verifiers in the future.
     /// The image ID is tightly coupled with our guest program and prevents a user from changing the off-chain
@@ -59,7 +59,7 @@ pub mod solana_examples {
         // We hash our journal outputs to get a journal digest
         let journal_digest = hashv(&[journal_outputs.as_slice()]).to_bytes();
 
-        // Next we collect the accounts necessary for making the CPI call to the Risc0 Proof Verifier program
+        // Next we collect the accounts necessary for making the CPI call to the RISC Zero Proof Verifier program
         let cpi_accounts = Verify {
             router: ctx.accounts.router_account.to_account_info(),
             verifier_entry: ctx.accounts.verifier_entry.to_account_info(),
@@ -77,7 +77,7 @@ pub mod solana_examples {
         // We setup our CPI context for the router
         let cpi_ctx = CpiContext::new(ctx.accounts.router.to_account_info(), cpi_accounts);
 
-        // We make the CPI call to the Risc0 Verifier Router which if it returns means the proof is valid
+        // We make the CPI call to the RISC Zero Verifier Router which if it returns means the proof is valid
         // In Solana you cannot recover from a CPI call which returns an error, to make this clear I explicitly unwrap although
         // behavior would be the same if I ignored the result.
         verifier_router::cpi::verify(cpi_ctx, selector, proof, image_id, journal_digest).unwrap();

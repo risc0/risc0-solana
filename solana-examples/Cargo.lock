@@ -1039,13 +1039,8 @@ name = "groth_16_verifier"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
- "anyhow",
- "ark-bn254",
- "ark-serialize",
- "borsh 1.5.3",
  "hex",
  "num-bigint",
- "num-traits",
  "risc0-zkp",
  "serde",
  "solana-program 2.1.6",

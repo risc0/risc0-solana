@@ -1,7 +1,7 @@
 /**
  * # acceptOwnership.ts
  *
- * Completes the ownership transfer of the Risc0 Router by accepting the pending transfer. This script must be run by the new owner after the
+ * Completes the ownership transfer of the RISC Zero Router by accepting the pending transfer. This script must be run by the new owner after the
  * transferOwnership script has been executed by the current owner.
  *
  * ## Environment Variables

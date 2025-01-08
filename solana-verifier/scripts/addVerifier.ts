@@ -1,5 +1,5 @@
 /**
- * Adds a new verifier program to an existing Risc0 Router. This script handles changing the verifier's upgrade authority to the router and registering it in the router's registry.
+ * Adds a new verifier program to an existing RISC Zero Router. This script handles changing the verifier's upgrade authority to the router and registering it in the router's registry.
  *
  * ## Environment Variables
  *

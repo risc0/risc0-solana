@@ -1,5 +1,5 @@
 /**
- * Permanently renounces ownership of the Risc0 Router. This is an irreversible action that will prevent any new verifiers from being added to the router.
+ * Permanently renounces ownership of the RISC Zero Router. This is an irreversible action that will prevent any new verifiers from being added to the router.
  * After renouncement, emergency stops can only be triggered by providing proof of exploitation. The script includes confirmation steps to prevent accidental
  * execution.
  *

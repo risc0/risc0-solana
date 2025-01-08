@@ -99,9 +99,9 @@ describe("verifier-router", () => {
 
   // Test Proof for the Test Bad Verifier
   const emptyProof: Proof = {
-    piA: new Uint8Array(64), // Empty 64 Byte array
-    piB: new Array(128), // Empty 128 byte array
-    piC: new Uint8Array(64), // Empty 64 byte array
+    piA: new Uint8Array(64).fill(0xca), // Empty 64 Byte array
+    piB: new Array(128).fill(0xfe), // Empty 128 byte array
+    piC: new Uint8Array(64).fill(0xca), // Empty 64 byte array
   };
 
   const emptyJournalDigest = new Uint8Array(32); // Empty Journal Digest

@@ -1,5 +1,5 @@
 /**
- * Initiates the transfer of ownership for the Risc0 Router to a new owner. This is the first step in a two-step ownership transfer process. After this script is run,
+ * Initiates the transfer of ownership for the RISC Zero Router to a new owner. This is the first step in a two-step ownership transfer process. After this script is run,
  * the new owner must accept ownership using the acceptOwnership script.
  *
  * ## Environment Variables

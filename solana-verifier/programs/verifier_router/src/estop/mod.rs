@@ -191,7 +191,7 @@ fn close_verifier<'info>(
 /// immediately disable the verifier from future use.
 ///
 /// If you believe you have identified a vulnerability and are unable to submit an
-/// invalid proof please contact the Risc0 team immediately if possible.
+/// invalid proof please contact the RISC Zero team immediately if possible.
 ///
 /// # Arguments
 /// * `ctx` - The EmergencyStop context containing validated accounts

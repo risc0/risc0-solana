@@ -16,11 +16,6 @@ no-idl = []
 no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
-# Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
-[patch.crates-io]
-curve25519-dalek = { git = "https://github.com/ivs/curve25519-dalek", branch = "rustls-dep-hell" }
-
-
 [dependencies]
 anchor-lang = "0.30.1"
 verifier_router = { path = "../../../solana-verifier/programs/verifier_router", features = ["cpi"] }

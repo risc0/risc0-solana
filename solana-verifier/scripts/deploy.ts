@@ -1,5 +1,5 @@
 /**
- * Builds, deploys, and initializes the Risc0 Verification Router and Initial Groth16 Verifier program on the Solana blockchain.
+ * Builds, deploys, and initializes the RISC Zero Verification Router and Initial Groth16 Verifier program on the Solana blockchain.
  * This script handles the complete deployment pipeline including building programs, deploying them on-chain, and
  * performing initial setup.
  *
@@ -64,7 +64,7 @@ import { addVerifier } from "./utils/addVerifier";
 const logger = createLogger();
 
 async function run_deployment(): Promise<void> {
-  logger.info("Risc0 Solana Program Deployment Script started");
+  logger.info("RISC Zero Solana Program Deployment Script started");
 
   const owner = await getTransactionSigner();
   const deployer = await getLocalKeypair();

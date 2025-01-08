@@ -38,7 +38,6 @@ pub mod verifier_router {
         router::add_verifier(ctx, selector)
     }
 
-    /// This is a test to explore what happens with the text here
     pub fn verify(
         ctx: Context<Verify>,
         selector: u32,

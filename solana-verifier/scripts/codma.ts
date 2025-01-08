@@ -1,5 +1,5 @@
 /**
- * Generates TypeScript client code from Anchor IDL files for the Risc0 Router and related programs.
+ * Generates TypeScript client code from Anchor IDL files for the RISC Zero Router and related programs.
  * This script uses Codama to create strongly-typed TypeScript interfaces and functions for interacting with the Solana programs.
  *
  * ## Overview

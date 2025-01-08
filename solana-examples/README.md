@@ -1,6 +1,6 @@
 # Solana Zero-Knowledge Proof Example Project
 
-This project demonstrates how to use the Risc0 zero-knowledge prover with Solana. 
+This project demonstrates how to use the RISC Zero zero-knowledge prover with Solana. 
 It provides an example Solana program that implements a simple nonce increment system
  where users must provide valid ZK proofs to increment a nonce value on-chain.
 
@@ -10,7 +10,7 @@ The project consists of several key components:
 
 - **Solana Programs**: Smart contracts that handle on-chain verification and state management
   - `verifier_router`: Routes proof verification requests to appropriate verifiers
-  - `groth16_verifier`: The Risc0 Groth16 verifier that performs the proof verification
+  - `groth16_verifier`: The RISC Zero Groth16 verifier that performs the proof verification
   - `solana-examples`: Example program that uses the data from a Risc0 Proof
 
 - **RISC Zero Guest Program**: Off-chain program that generates proofs

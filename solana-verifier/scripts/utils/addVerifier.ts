@@ -52,7 +52,7 @@ export async function addVerifier(
   owner: TransactionSigner
 ): Promise<void> {
   logger.info(
-    `Risc0 Verifier being with address: ${verifierAddress} being added to the router at address: ${routerAddress}`
+    `RISC Zero Verifier being with address: ${verifierAddress} being added to the router at address: ${routerAddress}`
   );
 
   logger.debug(`Using the address: ${owner.address} as owner`);

@@ -18,7 +18,7 @@ use groth_16_verifier::cpi::accounts::VerifyProof;
 #[derive(Accounts)]
 pub struct Initialize<'info> {
    /// The router account PDA to be initialized
-   /// Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
+   /// Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
    #[account(
        init,
        seeds = [b"router"],

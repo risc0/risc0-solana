@@ -97,7 +97,7 @@ pub struct IncrementNonce<'info> {
     ) -> Result<()> {
         // Your programs initial code...
 
-        // Next we collect the accounts necessary for making the CPI call to the Risc0 Proof Verifier program
+        // Next we collect the accounts necessary for making the CPI call to the RISC Zero Proof Verifier program
         let cpi_accounts = Verify {
             router: ctx.accounts.router_account.to_account_info(),
             verifier_entry: ctx.accounts.verifier_entry.to_account_info(),
@@ -118,7 +118,7 @@ pub struct IncrementNonce<'info> {
         // We setup our CPI context for the router
         let cpi_ctx = CpiContext::new(ctx.accounts.router.to_account_info(), cpi_accounts);
 
-        // We make the CPI call to the Risc0 Verifier Router which if it returns means the proof is valid
+        // We make the CPI call to the RISC Zero Verifier Router which if it returns means the proof is valid
         // In Solana you cannot recover from a CPI call which returns an error, to make this clear I explicitly unwrap although
         // behavior would be the same if I ignored the result.
         verifier_router::cpi::verify(cpi_ctx, selector, proof, image_id, journal_digest).unwrap();

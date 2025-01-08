@@ -1,5 +1,5 @@
 /**
- * Executes an emergency stop on a verifier in the Risc0 Router. This is an irreversible action that will permanently disable the specified verifier.
+ * Executes an emergency stop on a verifier in the RISC Zero Router. This is an irreversible action that will permanently disable the specified verifier.
  * The script includes multiple confirmation steps to prevent accidental execution.
  *
  * ## Environment Variables
