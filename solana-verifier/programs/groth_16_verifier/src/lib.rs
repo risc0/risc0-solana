@@ -219,12 +219,190 @@ fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
     false // scalar == q
 }
 
-#[cfg(feature = "client")]
+#[cfg(any(feature = "client", test))]
 pub mod client {
+    use super::vk::{G1_LEN, G2_LEN};
     use super::Proof;
     use crate::BASE_FIELD_MODULUS_Q;
+    use anchor_lang::solana_program::alt_bn128::compression::prelude::convert_endianness;
+    use anyhow::{anyhow, Error, Result};
+    use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
     use num_bigint::BigUint;
     use risc0_zkvm::{Groth16Receipt, ReceiptClaim};
+    use serde::{Deserialize, Deserializer, Serialize};
+    use std::{convert::TryInto, fs::File, io::Write};
+
+    type G1 = ark_bn254::g1::G1Affine;
+    type G2 = ark_bn254::g2::G2Affine;
+
+    #[derive(Deserialize, Serialize, Debug, PartialEq)]
+    struct ProofJson {
+        pi_a: Vec<String>,
+        pi_b: Vec<Vec<String>>,
+        pi_c: Vec<String>,
+        protocol: String,
+        curve: String,
+    }
+
+    #[derive(Deserialize, Serialize, Debug, PartialEq)]
+    struct VerifyingKeyJson {
+        protocol: String,
+        curve: String,
+        #[serde(rename = "nPublic")]
+        nr_pubinputs: u32,
+        vk_alpha_1: Vec<String>,
+        vk_beta_2: Vec<Vec<String>>,
+        vk_gamma_2: Vec<Vec<String>>,
+        vk_delta_2: Vec<Vec<String>>,
+        #[serde(rename = "IC")]
+        vk_ic: Vec<Vec<String>>,
+    }
+
+    impl<'de> Deserialize<'de> for Proof {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let json = ProofJson::deserialize(deserializer)?;
+            Proof::try_from(json).map_err(serde::de::Error::custom)
+        }
+    }
+
+    impl Serialize for Proof {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let json = self.to_json().map_err(serde::ser::Error::custom)?;
+            json.serialize(serializer)
+        }
+    }
+
+    impl TryFrom<ProofJson> for Proof {
+        type Error = Error;
+
+        fn try_from(json: ProofJson) -> Result<Self, Self::Error> {
+            Ok(Proof {
+                pi_a: convert_g1(&json.pi_a)?,
+                pi_b: convert_g2(&json.pi_b)?,
+                pi_c: convert_g1(&json.pi_c)?,
+            })
+        }
+    }
+
+    impl Proof {
+        fn to_json(&self) -> Result<ProofJson> {
+            Ok(ProofJson {
+                pi_a: export_g1(&self.pi_a),
+                pi_b: export_g2(&self.pi_b),
+                pi_c: export_g1(&self.pi_c),
+                protocol: "groth16".to_string(),
+                curve: "bn128".to_string(),
+            })
+        }
+
+        pub fn to_bytes(&self) -> [u8; 256] {
+            let mut bytes = [0u8; 256];
+            bytes[..64].copy_from_slice(&self.pi_a);
+            bytes[64..192].copy_from_slice(&self.pi_b);
+            bytes[192..].copy_from_slice(&self.pi_c);
+            bytes
+        }
+    }
+
+    fn export_g1(bytes: &[u8; G1_LEN]) -> Vec<String> {
+        let x = BigUint::from_bytes_be(&bytes[..32]);
+        let y = BigUint::from_bytes_be(&bytes[32..]);
+        vec![x.to_string(), y.to_string(), "1".to_string()]
+    }
+
+    fn export_g2(bytes: &[u8; G2_LEN]) -> Vec<Vec<String>> {
+        let x_c1 = BigUint::from_bytes_be(&bytes[..32]);
+        let x_c0 = BigUint::from_bytes_be(&bytes[32..64]);
+        let y_c1 = BigUint::from_bytes_be(&bytes[64..96]);
+        let y_c0 = BigUint::from_bytes_be(&bytes[96..]);
+        vec![
+            vec![x_c0.to_string(), x_c1.to_string()],
+            vec![y_c0.to_string(), y_c1.to_string()],
+            vec!["1".to_string(), "0".to_string()],
+        ]
+    }
+
+    pub(crate) fn convert_g1(values: &[String]) -> Result<[u8; G1_LEN]> {
+        if values.len() != 3 {
+            return Err(anyhow!(
+                "Invalid G1 point: expected 3 values, got {}",
+                values.len()
+            ));
+        }
+
+        let x = BigUint::parse_bytes(values[0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G1 x coordinate"))?;
+        let y = BigUint::parse_bytes(values[1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G1 y coordinate"))?;
+        let z = BigUint::parse_bytes(values[2].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G1 z coordinate"))?;
+
+        // check that z == 1
+        if z != BigUint::from(1u8) {
+            return Err(anyhow!(
+                "Invalid G1 point: Z coordinate is not 1 (found {})",
+                z
+            ));
+        }
+
+        let mut result = [0u8; G1_LEN];
+        let x_bytes = x.to_bytes_be();
+        let y_bytes = y.to_bytes_be();
+
+        result[32 - x_bytes.len()..32].copy_from_slice(&x_bytes);
+        result[G1_LEN - y_bytes.len()..].copy_from_slice(&y_bytes);
+
+        Ok(result)
+    }
+
+    pub(crate) fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
+        if values.len() != 3 || values[0].len() != 2 || values[1].len() != 2 || values[2].len() != 2
+        {
+            return Err(anyhow!("Invalid G2 point structure"));
+        }
+
+        let x_c0 = BigUint::parse_bytes(values[0][0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 x.c0"))?;
+        let x_c1 = BigUint::parse_bytes(values[0][1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 x.c1"))?;
+        let y_c0 = BigUint::parse_bytes(values[1][0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 y.c0"))?;
+        let y_c1 = BigUint::parse_bytes(values[1][1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 y.c1"))?;
+
+        // check z == [1, 0]
+        let z_c0 = BigUint::parse_bytes(values[2][0].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c0"))?;
+        let z_c1 = BigUint::parse_bytes(values[2][1].as_bytes(), 10)
+            .ok_or_else(|| anyhow!("Failed to parse G2 z.c1"))?;
+
+        if z_c0 != BigUint::from(1u8) || z_c1 != BigUint::from(0u8) {
+            return Err(anyhow!(
+                "Invalid G2 point: Z coordinate is not [1, 0] (found [{}, {}])",
+                z_c0,
+                z_c1
+            ));
+        }
+
+        let mut result = [0u8; G2_LEN];
+        let x_c1_bytes = x_c1.to_bytes_be();
+        let x_c0_bytes = x_c0.to_bytes_be();
+        let y_c1_bytes = y_c1.to_bytes_be();
+        let y_c0_bytes = y_c0.to_bytes_be();
+
+        result[32 - x_c1_bytes.len()..32].copy_from_slice(&x_c1_bytes);
+        result[64 - x_c0_bytes.len()..64].copy_from_slice(&x_c0_bytes);
+        result[96 - y_c1_bytes.len()..96].copy_from_slice(&y_c1_bytes);
+        result[G2_LEN - y_c0_bytes.len()..].copy_from_slice(&y_c0_bytes);
+
+        Ok(result)
+    }
 
     pub fn negate_g1(point: &[u8; 64]) -> Result<[u8; 64], ()> {
         let x = &point[..32];
@@ -259,5 +437,249 @@ pub mod client {
 
         proof.pi_a = negate_g1(&proof.pi_a)?;
         Ok(proof)
+    }
+
+    pub fn write_to_file(filename: &str, proof: &Proof) {
+        let mut file = File::create(filename).expect("Failed to create file");
+        file.write_all(&proof.pi_a)
+            .expect("Failed to write proof_a");
+        file.write_all(&proof.pi_b)
+            .expect("Failed to write proof_b");
+        file.write_all(&proof.pi_c)
+            .expect("Failed to write proof_c");
+    }
+
+    pub fn write_compressed_proof_to_file(filename: &str, proof: &[u8]) {
+        let mut file = File::create(filename).expect("Failed to create file");
+        file.write_all(proof).expect("Failed to write proof");
+    }
+
+    pub fn compress_g1_be(g1: &[u8; 64]) -> [u8; 32] {
+        let g1 = convert_endianness::<32, 64>(g1);
+        let mut compressed = [0u8; 32];
+        let g1 = G1::deserialize_with_mode(g1.as_slice(), Compress::No, Validate::Yes).unwrap();
+        G1::serialize_with_mode(&g1, &mut compressed[..], Compress::Yes).unwrap();
+        convert_endianness::<32, 32>(&compressed)
+    }
+
+    pub fn compress_g2_be(g2: &[u8; 128]) -> [u8; 64] {
+        let g2: [u8; 128] = convert_endianness::<64, 128>(g2);
+        let mut compressed = [0u8; 64];
+        let g2 = G2::deserialize_with_mode(g2.as_slice(), Compress::No, Validate::Yes).unwrap();
+        G2::serialize_with_mode(&g2, &mut compressed[..], Compress::Yes).unwrap();
+        convert_endianness::<64, 64>(&compressed)
+    }
+}
+
+#[cfg(test)]
+mod test_lib {
+    use super::client::*;
+    use super::*;
+    use risc0_zkvm::sha::Digestible;
+    use risc0_zkvm::Receipt;
+    use std::fs::File;
+    use std::io::Write;
+    use vk::*;
+
+    // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
+    const ALLOWED_CONTROL_ROOT: &str =
+        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
+    const BN254_IDENTITY_CONTROL_ID: &str =
+        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
+
+    // Reference base field modulus for BN254
+    // https://docs.rs/ark-bn254/latest/ark_bn254/
+    const REF_BASE_FIELD_MODULUS: &str =
+        "21888242871839275222246405745257275088696311157297823662689037894645226208583";
+
+    fn load_receipt_and_extract_data() -> (Receipt, Proof, PublicInputs<5>) {
+        let receipt_json_str = include_bytes!("../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+
+        let claim_digest = receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap();
+        let public_inputs = public_inputs(
+            claim_digest,
+            ALLOWED_CONTROL_ROOT,
+            BN254_IDENTITY_CONTROL_ID,
+        )
+        .unwrap();
+
+        let proof_raw = &receipt.inner.groth16().unwrap().seal;
+        let mut proof = Proof {
+            pi_a: proof_raw[0..64].try_into().unwrap(),
+            pi_b: proof_raw[64..192].try_into().unwrap(),
+            pi_c: proof_raw[192..256].try_into().unwrap(),
+        };
+        proof.pi_a = negate_g1(&proof.pi_a).unwrap();
+
+        (receipt, proof, public_inputs)
+    }
+
+    fn load_verification_key() -> VerificationKey {
+        return vk::VERIFICATION_KEY;
+    }
+
+    #[test]
+    fn test_convert_g1_invalid_z() {
+        let values = vec![
+            "1".to_string(), // x
+            "2".to_string(), // y
+            "0".to_string(), // z (invalid)
+        ];
+
+        let result = convert_g1(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G1 point: Z coordinate is not 1 (found 0)"
+        );
+    }
+
+    #[test]
+    fn test_convert_g2_invalid_z() {
+        let values = vec![
+            vec!["1".to_string(), "2".to_string()], // x
+            vec!["3".to_string(), "4".to_string()], // y
+            vec!["0".to_string(), "0".to_string()], // z (invalid)
+        ];
+
+        let result = convert_g2(&values);
+
+        assert!(
+            result.is_err(),
+            "Expected error due to invalid Z coordinate"
+        );
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid G2 point: Z coordinate is not [1, 0] (found [0, 0])"
+        );
+    }
+
+    #[test]
+    fn test_proof() {
+        let (_, proof, _) = load_receipt_and_extract_data();
+        println!("{:?}", proof);
+
+        // Convert to bytes
+        let proof_bytes = proof.to_bytes();
+
+        println!("PROOF: {:?}", proof_bytes);
+
+        // Check that we have 256 bytes
+        assert_eq!(proof_bytes.len(), 256);
+
+        // Test roundtrip
+        let exported_json = serde_json::to_string(&proof).unwrap();
+        let reimported_proof: Proof = serde_json::from_str(&exported_json).unwrap();
+        assert_eq!(proof, reimported_proof, "Proof roundtrip failed");
+
+        println!("Proof bytes: {:?}", proof_bytes);
+    }
+
+    #[test]
+    pub fn test_verify() {
+        let (_, proof, public_inputs) = load_receipt_and_extract_data();
+        let vk = load_verification_key();
+        let res = verify_groth_proof(&proof, &public_inputs);
+        assert!(res.is_ok(), "Verification failed");
+    }
+
+    #[test]
+    fn test_write_compressed_proof_to_file() {
+        let (_, proof, _) = load_receipt_and_extract_data();
+
+        let compressed_proof_a = compress_g1_be(&proof.pi_a);
+        let compressed_proof_b = compress_g2_be(&proof.pi_b);
+        let compressed_proof_c = compress_g1_be(&proof.pi_c);
+
+        let compressed_proof = [
+            compressed_proof_a.as_slice(),
+            compressed_proof_b.as_slice(),
+            compressed_proof_c.as_slice(),
+        ]
+        .concat();
+
+        write_compressed_proof_to_file("test/data/compressed_proof.bin", &compressed_proof);
+    }
+
+    #[test]
+    fn write_claim_digest_to_file() {
+        let claim_digest = get_claim_digest();
+
+        let output_path = "test/data/claim_digest.bin";
+
+        let mut file = File::create(output_path).expect("Failed to create file");
+        file.write_all(&claim_digest)
+            .expect("Failed to write claim digest to file");
+
+        println!("Raw claim digest written to {:?}", output_path);
+
+        // Verify the file was written correctly
+        let read_digest = std::fs::read(output_path).expect("Failed to read claim digest file");
+        assert_eq!(
+            claim_digest.to_vec(),
+            read_digest,
+            "Written and read claim digests do not match"
+        );
+    }
+
+    fn get_claim_digest() -> [u8; 32] {
+        let receipt_json_str = include_bytes!("../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+        receipt
+            .inner
+            .groth16()
+            .unwrap()
+            .claim
+            .digest()
+            .try_into()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_scalar_validity_check() {
+        let valid_scalar = [0u8; 32];
+        assert!(is_scalar_valid(&valid_scalar), "Zero should be valid");
+
+        let mut invalid_scalar = BASE_FIELD_MODULUS_Q;
+        assert!(!is_scalar_valid(&invalid_scalar), "q should be invalid");
+
+        invalid_scalar[31] += 1;
+        assert!(!is_scalar_valid(&invalid_scalar), "q+1 should be invalid");
+
+        let mut below_q = BASE_FIELD_MODULUS_Q;
+        below_q[31] -= 1;
+        assert!(is_scalar_valid(&below_q), "q-1 should be valid");
+    }
+
+    #[test]
+    fn test_base_field_modulus_against_reference() {
+        use num_bigint::BigUint;
+
+        let ref_base_field_modulus = BigUint::parse_bytes(REF_BASE_FIELD_MODULUS.as_bytes(), 10)
+            .expect("Failed to parse BASE_FIELD_MODULUS");
+
+        let ref_base_field_modulus_hex = format!("{:X}", ref_base_field_modulus);
+
+        let field_modulus_q_hex: String = BASE_FIELD_MODULUS_Q
+            .iter()
+            .map(|b| format!("{:02X}", b))
+            .collect();
+
+        assert_eq!(
+            field_modulus_q_hex, ref_base_field_modulus_hex,
+            "FIELD_MODULUS_Q does not match reference REF_BASE_FIELD_MODULUS"
+        );
     }
 }

@@ -11,7 +11,7 @@ The project consists of several key components:
 - **Solana Programs**: Smart contracts that handle on-chain verification and state management
   - `verifier_router`: Routes proof verification requests to appropriate verifiers
   - `groth16_verifier`: The RISC Zero Groth16 verifier that performs the proof verification
-  - `solana-examples`: Example program that uses the data from a Risc0 Proof
+  - `solana-examples`: Example program that uses the data from a RISC Zero Proof
 
 - **RISC Zero Guest Program**: Off-chain program that generates proofs
   - Located in `hello-world/methods/guest`

@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::{AnchorDeserialize, AnchorSerialize};
 
-const G1_LEN: usize = 64;
-const G2_LEN: usize = 128;
-const IC_LEN: usize = 6;
+pub const G1_LEN: usize = 64;
+pub const G2_LEN: usize = 128;
+pub const IC_LEN: usize = 6;
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
 pub struct VerificationKey {

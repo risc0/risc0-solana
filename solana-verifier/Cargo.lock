@@ -217,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.91"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c042108f3ed77fd83760a5fd79b53be043192bb3b9dba91d8c574c0ada7850c8"
+checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
 
 [[package]]
 name = "ark-bn254"
@@ -1027,11 +1027,15 @@ name = "groth_16_verifier"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "anyhow",
+ "ark-bn254",
+ "ark-serialize",
  "hex",
  "num-bigint",
  "risc0-zkp",
  "risc0-zkvm",
  "serde",
+ "serde_json",
  "solana-program 2.1.6",
 ]
 
