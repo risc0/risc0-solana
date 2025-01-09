@@ -217,6 +217,12 @@ pub fn emergency_stop_with_proof(
     };
 
     let verify_ctx = CpiContext::new(verifier_program, verifier_accounts);
+
+    // We ignore the result because in solana Invoke will fail the transaction for any non-success result.
+    // See https://docs.rs/solana-cpi/latest/solana_cpi/fn.invoke.html specifically:
+    //
+    // > This function will not return if the called program returns anything other than success.
+    // > If the callee returns an error or aborts then the entire transaction will immediately fail.
     let _ = groth_16_verifier::cpi::verify(verify_ctx, proof, zero_array, zero_array);
 
     close_verifier(
