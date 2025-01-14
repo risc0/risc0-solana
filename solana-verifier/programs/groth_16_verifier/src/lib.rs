@@ -15,9 +15,9 @@ pub use vk::{VerificationKey, VERIFICATION_KEY};
 declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
 const ALLOWED_CONTROL_ROOT: &str =
-    "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
+    "8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469";
 const BN254_IDENTITY_CONTROL_ID: &str =
-    "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
+    "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404";
 
 // Base field modulus `q` for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -480,12 +480,6 @@ mod test_lib {
     use std::fs::File;
     use std::io::Write;
     use vk::*;
-
-    // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
-    const ALLOWED_CONTROL_ROOT: &str =
-        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
-    const BN254_IDENTITY_CONTROL_ID: &str =
-        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
 
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
