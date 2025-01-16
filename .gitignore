@@ -1,2 +1,4 @@
 */test_ledger/*
-*/target/*
+*/target/
+target/
+.idea/
