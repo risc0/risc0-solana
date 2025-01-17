@@ -6,18 +6,22 @@ use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::system_program;
 use error::VerifierError;
 use risc0_zkp::core::digest::Digest;
+use risc0_zkvm::{MaybePruned, ReceiptClaim};
+use risc0_zkvm::sha::Digestible;
+// use risc0_zkvm::{MaybePruned, ReceiptClaim};
+// use risc0_zkvm::sha::Digestible;
 
 mod error;
 mod vk;
 
 pub use vk::{VerificationKey, VERIFICATION_KEY};
 
-declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
+declare_id!("45TSzwPpmUmteoUXBxbGkD5nGCQvTaUCdxD94pW4VdYv");
 
 const ALLOWED_CONTROL_ROOT: &str =
-    "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
+    "8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469";
 const BN254_IDENTITY_CONTROL_ID: &str =
-    "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
+    "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404";
 
 // Base field modulus `q` for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -43,14 +47,14 @@ pub mod groth_16_verifier {
         proof: Proof,
         // TODO: Anchor really seems to struggle with constant generics in program fields
         // Take a look at this after testing because running behind
-        image_id: [u8; 32],
+        image_id: [u32; 8],
         journal_digest: [u8; 32],
     ) -> Result<()> {
         verify_proof(&proof, &image_id, &journal_digest)
     }
 }
 
-pub fn verify_proof(proof: &Proof, image_id: &[u8; 32], journal_digest: &[u8; 32]) -> Result<()> {
+pub fn verify_proof(proof: &Proof, image_id: &[u32; 8], journal_digest: &[u8; 32]) -> Result<()> {
     let claim_digest = compute_claim_digest(image_id, journal_digest);
 
     let public_inputs = public_inputs(
@@ -67,11 +71,19 @@ pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
     journal_digest.to_bytes()
 }
 
-pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
+pub fn compute_claim_digest(image_id: &[u32; 8], journal_digest: &[u8; 32]) -> [u8; 32] {
     // Hash the Image ID and the journal inputs
-    let journal_digest = hashv(&[image_id, journal_digest]);
+    // let journal_digest = hashv(&[image_id, journal_digest]);
+    //
+    // journal_digest.to_bytes()
 
-    journal_digest.to_bytes()
+
+    let claim = ReceiptClaim::ok(
+        Digest::from(*image_id),
+        MaybePruned::Pruned(Digest::from(*journal_digest))
+    );
+    claim.digest().as_bytes().try_into().unwrap()
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
@@ -94,64 +106,65 @@ pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
 }
 
-/// Verifies a Groth16 proof.
-///
-/// # Arguments
-///
-/// * `proof` - The proof to verify.
-/// * `public` - The public inputs to the proof.
-/// * `vk` - The verification key.
-///
-/// Note: The proof's `pi_a` element is expected to be the negated version of the proof element.
-/// Ensure that `pi_a` has been negated before calling this function.
-///
-/// # Returns
-///
-/// * `Ok(())` if the proof is valid.
-/// * `Err(ProgramError)` if the proof is invalid or an error occurs.
 pub fn verify_groth_proof<const N_PUBLIC: usize>(
     proof: &Proof,
     public: &PublicInputs<N_PUBLIC>,
 ) -> Result<()> {
     let vk = VERIFICATION_KEY;
-    // Check vk_ic is the correct length
     if vk.vk_ic.len() != N_PUBLIC + 1 {
         return err!(VerifierError::InvalidPublicInput);
     }
-    // Prepare public inputs
-    let mut prepared = vk.vk_ic[0];
+
+    // Calculate prepared inputs in chunks
+    let mut prepared = prepare_initial_input(&vk.vk_ic[0])?;
+
     for (i, input) in public.inputs.iter().enumerate() {
         if !is_scalar_valid(input) {
             return err!(VerifierError::InvalidPublicInput);
         }
-        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
-            .map_err(|_| error!(VerifierError::ArithmeticError))?;
-        prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
-            .unwrap()
-            .try_into()
-            .map_err(|_| error!(VerifierError::ArithmeticError))?;
+        prepared = add_prepared_input(&prepared, &vk.vk_ic[i + 1], input)?;
     }
 
-    // Perform pairing check
-    let pairing_input = [
-        proof.pi_a.as_slice(),
-        proof.pi_b.as_slice(),
-        prepared.as_slice(),
-        vk.vk_gamma_g2.as_slice(),
-        proof.pi_c.as_slice(),
-        vk.vk_delta_g2.as_slice(),
-        vk.vk_alpha_g1.as_slice(),
-        vk.vk_beta_g2.as_slice(),
-    ]
-    .concat();
+    verify_pairing(proof, &prepared, &vk)
+}
 
-    //  Use the Solana alt_bn128_pairing syscall.
-    //
-    //  The `alt_bn128_pairing` function does not return the actual pairing result.
-    //  Instead, it returns a 32-byte big-endian integer:
-    //   - If the pairing check passes, it returns 1 represented as a 32-byte big-endian integer (`[0u8; 31] + [1u8]`).
-    //   - If the pairing check fails, it returns 0 represented as a 32-byte big-endian integer (`[0u8; 32]`).
-    let pairing_res = alt_bn128_pairing(&pairing_input).map_err(|_| VerifierError::PairingError)?;
+// Break verify_groth_proof into helper functions
+fn prepare_initial_input(initial: &[u8; 64]) -> Result<[u8; 64]> {
+    Ok(*initial)
+}
+
+fn add_prepared_input(
+    prepared: &[u8; 64],
+    vk_ic: &[u8; 64],
+    input: &[u8; 32],
+) -> Result<[u8; 64]> {
+    let mul_res = alt_bn128_multiplication(&[&vk_ic[..], &input[..]].concat())
+        .map_err(|_| error!(VerifierError::ArithmeticError))?;
+
+    alt_bn128_addition(&[&mul_res[..], prepared].concat())
+        .unwrap()
+        .try_into()
+        .map_err(|_| error!(VerifierError::ArithmeticError))
+}
+
+fn verify_pairing(
+    proof: &Proof,
+    prepared: &[u8; 64],
+    vk: &VerificationKey,
+) -> Result<()> {
+    // Build pairing input in chunks
+    let mut pairing_input = Vec::with_capacity(512);
+    pairing_input.extend_from_slice(&proof.pi_a);
+    pairing_input.extend_from_slice(&proof.pi_b);
+    pairing_input.extend_from_slice(prepared);
+    pairing_input.extend_from_slice(&vk.vk_gamma_g2);
+    pairing_input.extend_from_slice(&proof.pi_c);
+    pairing_input.extend_from_slice(&vk.vk_delta_g2);
+    pairing_input.extend_from_slice(&vk.vk_alpha_g1);
+    pairing_input.extend_from_slice(&vk.vk_beta_g2);
+
+    let pairing_res = alt_bn128_pairing(&pairing_input)
+        .map_err(|_| VerifierError::PairingError)?;
 
     let mut expected = [0u8; 32];
     expected[31] = 1;
@@ -162,6 +175,7 @@ pub fn verify_groth_proof<const N_PUBLIC: usize>(
 
     Ok(())
 }
+
 
 pub fn public_inputs(
     claim_digest: [u8; 32],
@@ -481,12 +495,6 @@ mod test_lib {
     use std::io::Write;
     use vk::*;
 
-    // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
-    const ALLOWED_CONTROL_ROOT: &str =
-        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
-    const BN254_IDENTITY_CONTROL_ID: &str =
-        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
-
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
     const REF_BASE_FIELD_MODULUS: &str =
@@ -496,14 +504,18 @@ mod test_lib {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
 
-        let claim_digest = receipt
-            .inner
-            .groth16()
-            .unwrap()
-            .claim
-            .digest()
+        let journal_digest = receipt.journal.digest().as_bytes();
+
+        pub const HELLO_GUEST_ID: [u32; 8] = [18688597, 1673543865, 1491143371, 721664238, 865920440, 525156886, 2498763974, 799689043];
+
+
+        // Convert journal digest to [u8; 32]
+        let journal_digest: [u8; 32] = receipt.journal.digest().as_bytes()
             .try_into()
-            .unwrap();
+            .expect("Journal digest must be 32 bytes");
+
+        let claim_digest = compute_claim_digest(&HELLO_GUEST_ID, &journal_digest);
+
         let public_inputs = public_inputs(
             claim_digest,
             ALLOWED_CONTROL_ROOT,
@@ -634,6 +646,33 @@ mod test_lib {
         );
     }
 
+    pub const HELLO_GUEST_ID: [u32; 8] = [18688597, 1673543865, 1491143371, 721664238, 865920440, 525156886, 2498763974, 799689043];
+
+    #[test]
+    fn test_claim_digest() {
+        let receipt_json_str = include_bytes!("../test/data/receipt.json");
+        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
+
+        let real_claim = receipt.inner.groth16().unwrap().claim.digest();
+        println!("RISC0 claim digest: {:?}", real_claim.as_bytes().clone());
+
+        let mut image_id = [0u8; 32];
+        for (i, &val) in HELLO_GUEST_ID.iter().enumerate() {
+            let bytes = val.to_le_bytes();
+            image_id[i*4..(i+1)*4].copy_from_slice(&bytes);
+        }
+
+        let journal_digest: [u8; 32] = receipt.journal.digest().as_bytes()
+            .try_into()
+            .expect("Journal digest must be 32 bytes");
+
+        let our_claim = compute_claim_digest(&HELLO_GUEST_ID, &journal_digest);
+        println!("Our claim digest:   {:?}", our_claim);
+
+        assert_eq!(real_claim.as_bytes(), our_claim, "Claim digests don't match");
+    }
+
+
     fn get_claim_digest() -> [u8; 32] {
         let receipt_json_str = include_bytes!("../test/data/receipt.json");
         let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
@@ -682,4 +721,5 @@ mod test_lib {
             "FIELD_MODULUS_Q does not match reference REF_BASE_FIELD_MODULUS"
         );
     }
+
 }
