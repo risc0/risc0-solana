@@ -23,6 +23,8 @@ use methods::{HELLO_GUEST_ELF, HELLO_GUEST_ID};
 
 // A shared library that contains the inputs / outputs of our guest
 use shared::IncrementNonceArguments;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 type PROGRAM = Program<Arc<Keypair>>;
 
@@ -53,10 +55,10 @@ fn convert_array(input: [u32; 8]) -> [u8; 32] {
 /// - Selector for the verifier router
 ///
 /// # Notice
-/// 
-/// This function can only be called once, if the program data has been previously initialized 
-/// it will panic. 
-/// 
+///
+/// This function can only be called once, if the program data has been previously initialized
+/// it will panic.
+///
 /// # Arguments
 ///
 /// * `user` - Keypair used for signing the initialization transaction and paying rent
@@ -128,26 +130,36 @@ async fn increment_nonce(
 
     info!("Current Nonce value is {nonce}");
 
-    let prover = default_prover();
-
     let nonce_arguments = IncrementNonceArguments {
         account: user.pubkey().to_bytes(),
         nonce,
     };
-
-    // We serialize with Borsh to get a format that is more commonly used in Solana
     let input = to_vec(&nonce_arguments).expect("Could not serialize proof nonce arguments");
 
-    let env = ExecutorEnv::builder().write_slice(&input).build().unwrap();
+    let receipt = tokio::task::spawn_blocking(move || {
+        let prover = default_prover();
+        let env = ExecutorEnv::builder().write_slice(&input).build().unwrap();
+        let prover_options = ProverOpts::groth16();
+        let prove_info = prover
+            .prove_with_opts(env, HELLO_GUEST_ELF, &prover_options)
+            .unwrap();
+        prove_info.receipt
+    })
+    .await
+    .expect("Proving task failed");
 
-    // Proof information by proving the specified ELF binary.
-    // This struct contains the receipt along with statistics about execution of the guest
-    let prover_options = ProverOpts::groth16();
-    let prove_info = prover
-        .prove_with_opts(env, HELLO_GUEST_ELF, &prover_options)
-        .unwrap();
+    debug!("Receipt: {:?}", receipt);
 
-    let receipt = prove_info.receipt;
+    let receipt_json = serde_json::to_string_pretty(&receipt)
+        .expect("Failed to serialize receipt to JSON");
+
+    let mut file = File::create("receipt.json")
+        .await
+        .expect("Failed to create file");
+
+    file.write_all(receipt_json.as_bytes())
+        .await
+        .expect("Failed to write receipt to file");
 
     let journal_digest = receipt.journal.digest();
 
@@ -200,7 +212,7 @@ async fn increment_nonce(
 }
 
 /// Main entry point for the host program that demonstrates zero-knowledge proof integration with Solana.
-/// 
+///
 /// The program will:
 /// - Create a new keypair for transactions
 /// - Request an airdrop
