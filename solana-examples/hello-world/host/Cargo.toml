@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 methods = { path = "../methods" }
-risc0-zkvm = { version = "1.2.0", default-features = false, features = ["prove"]}
+risc0-zkvm = { path = "/Users/hans/github.com/risc0/risc0/risc0/zkvm" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 solana-examples = { path = "../../programs/solana-examples", features = ["no-entrypoint"] }
 groth_16_verifier = { path = "../../../solana-verifier/programs/groth_16_verifier", features = ["no-entrypoint", "client"]}
@@ -15,6 +15,7 @@ tokio = { version = "1.42.0", features = ["macros"] }
 tracing = "0.1.41"
 borsh = { version = "0.10.3" }
 shared = { path = "../../shared" }
+serde_json = "1.0.135"
 
 # Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
 [patch.crates-io]
