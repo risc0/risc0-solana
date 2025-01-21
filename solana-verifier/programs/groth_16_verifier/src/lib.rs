@@ -2,14 +2,14 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::alt_bn128::prelude::{
     alt_bn128_addition, alt_bn128_multiplication, alt_bn128_pairing,
 };
-use anchor_lang::solana_program::hash::hashv;
+use anchor_lang::solana_program::hash::{hash, hashv, Hash};
 use anchor_lang::system_program;
+use bytemuck::Zeroable;
 use error::VerifierError;
 use risc0_zkp::core::digest::Digest;
-use risc0_zkvm::{MaybePruned, ReceiptClaim};
+use risc0_zkvm::{MaybePruned,
+};
 use risc0_zkvm::sha::Digestible;
-// use risc0_zkvm::{MaybePruned, ReceiptClaim};
-// use risc0_zkvm::sha::Digestible;
 
 mod error;
 mod vk;
@@ -72,18 +72,140 @@ pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
 }
 
 pub fn compute_claim_digest(image_id: &[u32; 8], journal_digest: &[u8; 32]) -> [u8; 32] {
-    // Hash the Image ID and the journal inputs
-    // let journal_digest = hashv(&[image_id, journal_digest]);
-    //
-    // journal_digest.to_bytes()
+    let mut image_id_bytes = Vec::new();
+    for &id in image_id.iter() {
+        image_id_bytes.extend_from_slice(&id.to_le_bytes());
+    }
+
+    let pre_state_digest = hash(&image_id_bytes);
+    let journal_hash = hash(journal_digest);
+
+    let claim = ReceiptClaim::new(pre_state_digest, journal_hash);
+    claim.digest().to_bytes().try_into().unwrap()
+}
+
+pub fn reverse_byte_order_u32(value: u32) -> u32 {
+    value.to_be()
+}
+
+#[derive(Debug, Clone)]
+pub struct Receipt {
+    pub seal: Vec<u8>,
+    pub claim_digest: Hash,
+}
+
+#[derive(Debug, Clone)]
+
+pub struct ReceiptClaim {
+    pub pre_state_digest: Hash,
+    pub post_state_digest: Hash,
+    pub exit_code: ExitCode,
+    pub input: Hash,
+    pub output: Output,
+}
+
+impl ReceiptClaim {
 
 
-    let claim = ReceiptClaim::ok(
-        Digest::from(*image_id),
-        MaybePruned::Pruned(Digest::from(*journal_digest))
-    );
-    claim.digest().as_bytes().try_into().unwrap()
+    pub fn new(image_id: Hash, journal_digest: Hash) -> Self {
+        let SYSTEM_STATE_ZERO_DIGEST: Hash = hash(&[0; 32]);
+        Self {
+            pre_state_digest: image_id,
+            post_state_digest: SYSTEM_STATE_ZERO_DIGEST,
+            exit_code: ExitCode::new(SystemExitCode::Halted, 0),
+            input: Hash::zeroed(),
+            output: Output::new(journal_digest, Hash::zeroed()),
+        }
+    }
 
+    pub fn digest(&self) -> Hash {
+        // Prepare a buffer for tightly packed data
+        let mut data = Vec::new();
+
+        // TAG_DIGEST
+        let tag_digest: [u8; 32] = hash(b"risc0.ReceiptClaim").to_bytes();
+        data.extend_from_slice(&tag_digest);
+
+        data.extend_from_slice(self.input.as_ref());
+        data.extend_from_slice(self.pre_state_digest.as_ref());
+        data.extend_from_slice(self.post_state_digest.as_ref());
+        data.extend_from_slice(self.output.digest().as_ref());
+        // exitCode.system (uint32 shifted << 24)
+        let system_bytes = (self.exit_code.system as u32).to_be_bytes();
+        let shifted_system = [system_bytes[0], system_bytes[1], system_bytes[2], 0];
+        data.extend_from_slice(&shifted_system);
+        // exitCode.user (uint32 shifted << 24)
+        let user_bytes = (self.exit_code.user as u32).to_be_bytes();
+        let shifted_user = [user_bytes[0], user_bytes[1], user_bytes[2], 0];
+        data.extend_from_slice(&shifted_user);
+        // down.length (uint16 << 8)
+        let down_length: u16 = 4 << 8;
+        data.extend_from_slice(&down_length.to_be_bytes());
+
+        hash(&data)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SystemState {
+    pub pc: u32,
+    pub merkle_root: Hash,
+}
+
+impl SystemState {
+
+    pub fn digest(&self) -> Hash {
+        let TAG_DIGEST: Hash = hash(b"risc0.SystemState");
+        let mut data = vec![];
+        data.extend_from_slice(TAG_DIGEST.as_ref());
+        data.extend_from_slice(self.merkle_root.as_ref());
+        data.extend_from_slice(&reverse_byte_order_u32(self.pc).to_be_bytes());
+        hash(&data)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExitCode {
+    pub system: SystemExitCode,
+    pub user: u8,
+}
+
+impl ExitCode {
+    pub fn new(system: SystemExitCode, user: u8) -> Self {
+        Self { system, user }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SystemExitCode {
+    Halted,
+    Paused,
+    SystemSplit,
+}
+
+#[derive(Debug, Clone)]
+pub struct Output {
+    pub journal_digest: Hash,
+    pub assumptions_digest: Hash,
+}
+
+impl Output {
+
+    pub fn new(journal_digest: Hash, assumptions_digest: Hash) -> Self {
+        Self {
+            journal_digest,
+            assumptions_digest,
+        }
+    }
+
+    pub fn digest(&self) -> Hash {
+        let TAG_DIGEST: Hash = hash(b"risc0.Output");
+        let mut data = vec![];
+        data.extend_from_slice(TAG_DIGEST.as_ref());
+        data.extend_from_slice(self.journal_digest.as_ref());
+        data.extend_from_slice(self.assumptions_digest.as_ref());
+        hash(&data)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
