@@ -74,6 +74,9 @@ cd solana-examples
 
 # Sync keys for local deploy
 anchor keys sync
+ 
+# Build 
+anchor build
 
 # Deploy the program locally
 anchor deploy
