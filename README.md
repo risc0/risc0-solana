@@ -11,13 +11,13 @@ This repository contains our Solana verifier infrastructure and supporting code.
 
 ### Verifier Router
 
-Our core verifier infrastructure that allows secure on-chain verification of RISC Zero zkVM proofs. The router provides:
+Our core verifier infrastructure allows secure on-chain verification of RISC Zero zkVM proofs. The router provides:
 
 - On-chain verification of Groth16 proofs from the RISC Zero zkVM
 - Dynamic verifier routing and management
 - Emergency stop functionality for security
 
-### Supporting Libraries
+### Supporting Components
 
 We provide several supporting libraries to help developers integrate with the verifier:
 
