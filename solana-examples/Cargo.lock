@@ -1040,6 +1040,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "hex",
+ "hex-literal",
  "num-bigint",
  "risc0-zkp",
  "serde",

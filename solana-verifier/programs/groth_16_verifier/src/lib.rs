@@ -5,6 +5,7 @@ use anchor_lang::solana_program::alt_bn128::prelude::{
 use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::system_program;
 use error::VerifierError;
+use hex_literal::hex;
 use risc0_zkp::core::digest::Digest;
 
 mod error;
@@ -15,9 +16,9 @@ pub use vk::{VerificationKey, VERIFICATION_KEY};
 declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
 const ALLOWED_CONTROL_ROOT: &str =
-    "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
+    "8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469";
 const BN254_IDENTITY_CONTROL_ID: &str =
-    "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
+    "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404";
 
 // Base field modulus `q` for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -67,11 +68,151 @@ pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
     journal_digest.to_bytes()
 }
 
-pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
-    // Hash the Image ID and the journal inputs
-    let journal_digest = hashv(&[image_id, journal_digest]);
+/// Helper function used to match the other helpers for byte shifting even though
+/// this just makes a big endian output
+/// If `x = 0x1234_5678`, the reversed bytes are `[0x12, 0x34, 0x56, 0x78]`.
+fn convert_be(x: u32) -> [u8; 4] {
+    x.to_be_bytes()
+}
 
-    journal_digest.to_bytes()
+/// Convert a 16-bit integer `n` into `(n << 8)` in big-endian
+/// `(uint16(n) << 8)`. For example, `(1 << 8) = 0x0100` → `[0x01, 0x00]`.
+fn two_byte_down_be(n: u16) -> [u8; 2] {
+    (n << 8).to_be_bytes()
+}
+
+/// Convert a 32-bit integer `x` into `(x << 24)` in big-endian, matching `(uint32(x) << 24)`.
+/// if `x=1`, `(x << 24) = 0x01000000`.
+fn shift_left_24_be(x: u32) -> [u8; 4] {
+    (x << 24).to_be_bytes()
+}
+
+/// TODO: Remove this once you compute the constant hex value for zero_digest
+/// Compute the digest of a SystemState struct
+/// ```solidity
+/// bytes32 constant TAG_DIGEST = sha256("risc0.SystemState");
+/// function digest(SystemState state) returns (bytes32) {
+///   return sha256(abi.encodePacked(
+///       TAG_DIGEST,
+///       state.merkle_root,
+///       reverseByteOrderUint32(state.pc),
+///       (uint16(1) << 8)
+///   ));
+/// }
+/// ```
+/// The final 2 bytes are `0x0100`, and `pc` is reversed byte order.
+fn compute_system_state_digest(pc: u32, merkle_root: [u8; 32]) -> [u8; 32] {
+    // domain_tag = sha256("risc0.SystemState")
+    let tag: [u8; 32] = hex!("206115a847207c0892e0c0547225df31d02a96eeb395670c31112dff90b421d6");
+    let pc_bytes = convert_be(pc);
+    let down_len = two_byte_down_be(1);
+
+    let hash_out = hashv(&[&tag, &merkle_root, &pc_bytes, &down_len]);
+    hash_out.to_bytes()
+}
+
+/// TODO: THIS IS A CONSTANT, USE hex! to set its value to save compute
+/// A “zero” SystemState is `(pc=0, merkle_root=0)`
+fn compute_system_state_zero_digest() -> [u8; 32] {
+    compute_system_state_digest(0, [0u8; 32])
+}
+
+/// Compute the digest of an `Output` struct:
+/// ```solidity
+/// bytes32 constant TAG_DIGEST = sha256("risc0.Output");
+/// function digest(Output o) returns (bytes32) {
+///   return sha256(abi.encodePacked(
+///       TAG_DIGEST,
+///       o.journalDigest,
+///       o.assumptionsDigest,
+///       (uint16(2) << 8)
+///   ));
+/// }
+/// ```
+/// The final 2 bytes are `0x0200`.
+fn compute_output_digest(journal_digest: &[u8; 32], assumptions_digest: &[u8; 32]) -> [u8; 32] {
+    // let tag = sha256("risc0.Output");
+    let tag: [u8; 32] = hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4");
+    let down_len = two_byte_down_be(2); // 0x0200 for "2 fields"
+
+    let hash_out = hashv(&[&tag, journal_digest, assumptions_digest, &down_len]);
+    hash_out.to_bytes()
+}
+
+/// For the "ok" enum we have `(journalDigest, 0)`.
+fn compute_output_digest_ok(journal_digest: &[u8; 32]) -> [u8; 32] {
+    compute_output_digest(journal_digest, &[0u8; 32])
+}
+
+/// Compute the digest of a `ReceiptClaim
+/// ```solidity
+/// bytes32 constant TAG_DIGEST = sha256("risc0.ReceiptClaim");
+/// function digest(ReceiptClaim claim) returns (bytes32) {
+///   return sha256(abi.encodePacked(
+///       TAG_DIGEST,
+///       claim.input,               // 32 bytes
+///       claim.preStateDigest,      // 32 bytes
+///       claim.postStateDigest,     // 32 bytes
+///       claim.output,              // 32 bytes
+///       (uint32(claim.exitCode.system) << 24),  // 4 bytes
+///       (uint32(claim.exitCode.user) << 24),    // 4 bytes
+///       (uint16(4) << 8)          // 0x0400, 2 bytes
+///   ));
+/// }
+/// ```
+fn compute_receipt_claim_digest(
+    input_digest: &[u8; 32],
+    pre_state_digest: &[u8; 32],
+    post_state_digest: &[u8; 32],
+    output_digest: &[u8; 32],
+    system_exit_code: u32,
+    user_exit_code: u32,
+) -> [u8; 32] {
+    // let tag = domain_tag("risc0.ReceiptClaim");
+    let tag = hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af");
+    let system_bytes = shift_left_24_be(system_exit_code);
+    let user_bytes = shift_left_24_be(user_exit_code);
+    let down_len = two_byte_down_be(4);
+
+    let hash_out = hashv(&[
+        &tag,
+        input_digest,
+        pre_state_digest,
+        post_state_digest,
+        output_digest,
+        &system_bytes,
+        &user_bytes,
+        &down_len,
+    ]);
+    hash_out.to_bytes()
+}
+
+/// Compute the claim digest from the image_id and journal_digest by creating a Receipt Claim digest
+pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
+    // 1) input = 0
+    let input_digest = [0u8; 32];
+
+    // 2) pre = image_id
+    let pre_digest = image_id;
+
+    // 3) post = zero system state
+    let post_digest = compute_system_state_zero_digest();
+
+    // 4) output = hash of `Output(journal_digest, 0)`
+    let output_digest = compute_output_digest_ok(journal_digest);
+
+    // 5) exitCode = (system=0 => Halted, user=0)
+    let system_exit = 0;
+    let user_exit = 0;
+
+    compute_receipt_claim_digest(
+        &input_digest,
+        pre_digest,
+        &post_digest,
+        &output_digest,
+        system_exit,
+        user_exit,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]

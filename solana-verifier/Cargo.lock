@@ -1031,6 +1031,7 @@ dependencies = [
  "ark-bn254",
  "ark-serialize",
  "hex",
+ "hex-literal",
  "num-bigint",
  "risc0-zkp",
  "risc0-zkvm",

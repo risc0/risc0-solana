@@ -102,7 +102,7 @@ export type InitializeAsyncInput<
 > = {
   /**
    * The router account PDA to be initialized
-   * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
+   * Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
    */
   router?: Address<TAccountRouter>;
   /** The authority initializing and paying for the router */
@@ -188,7 +188,7 @@ export type InitializeInput<
 > = {
   /**
    * The router account PDA to be initialized
-   * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
+   * Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
    */
   router: Address<TAccountRouter>;
   /** The authority initializing and paying for the router */
@@ -263,7 +263,7 @@ export type ParsedInitializeInstruction<
   accounts: {
     /**
      * The router account PDA to be initialized
-     * Space allocated for discriminator + owner (Pubkey) + pending_owner: (Option<Pubkey>) + count (u32)
+     * Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
      */
 
     router: TAccountMetas[0];

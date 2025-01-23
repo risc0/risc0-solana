@@ -28,6 +28,7 @@ risc0-zkvm = { version = "1.2.0", default-features = false, optional = true}
 anyhow = { version = "1.0.95", optional = true }
 ark-bn254 = { version = "0.4.0", optional = true }
 ark-serialize = { version = "0.4.2", optional = true }
+hex-literal = "0.4.1"
 
 [dev-dependencies]
 risc0-zkvm = { version = "1.1.1", default-features = false } 

@@ -53,10 +53,10 @@ fn convert_array(input: [u32; 8]) -> [u8; 32] {
 /// - Selector for the verifier router
 ///
 /// # Notice
-/// 
-/// This function can only be called once, if the program data has been previously initialized 
-/// it will panic. 
-/// 
+///
+/// This function can only be called once, if the program data has been previously initialized
+/// it will panic.
+///
 /// # Arguments
 ///
 /// * `user` - Keypair used for signing the initialization transaction and paying rent
@@ -196,11 +196,11 @@ async fn increment_nonce(
         .await
         .expect("Unable to send increment nonce transaction");
 
-    info!("Transaction successfully, nonce incremented");
+    info!("Transaction successfully completed, nonce incremented");
 }
 
 /// Main entry point for the host program that demonstrates zero-knowledge proof integration with Solana.
-/// 
+///
 /// The program will:
 /// - Create a new keypair for transactions
 /// - Request an airdrop
