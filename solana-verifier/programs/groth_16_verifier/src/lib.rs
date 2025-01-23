@@ -431,7 +431,7 @@ mod test_groth16_lib {
         let image_id = [1u8; 32];
         let journal_digest = [2u8; 32];
         let digest = hash_claim(&image_id, &journal_digest);
-        assert_ne!(digest, [0u8; 32], "Should generate non-zero digest" );
+        assert_ne!(digest, [0u8; 32], "Should generate non-zero digest");
     }
 
     #[test]

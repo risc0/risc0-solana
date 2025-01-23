@@ -5,9 +5,9 @@ pub use groth_16_verifier::{Proof, PublicInputs, VerificationKey};
 use crate::state::{VerifierEntry, VerifierRouter};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::bpf_loader_upgradeable;
-use ownable::Ownership;
-pub use groth_16_verifier::program::Groth16Verifier;
 use groth_16_verifier::cpi::accounts::VerifyProof;
+pub use groth_16_verifier::program::Groth16Verifier;
+use ownable::Ownership;
 
 /// Account validation struct for router initialization
 ///
@@ -17,23 +17,23 @@ use groth_16_verifier::cpi::accounts::VerifyProof;
 /// * Allocates space for ownership data and verifier count
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-   /// The router account PDA to be initialized
-   /// Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
-   #[account(
+    /// The router account PDA to be initialized
+    /// Space allocated for discriminator + owner (Option<Pubkey>) + pending_owner: (Option<Pubkey>) + count (u32)
+    #[account(
        init,
        seeds = [b"router"],
        bump,
        payer = authority,
-       space = 8 + 33 + 33 + 4 
+       space = 8 + 33 + 33 + 4
    )]
-   pub router: Account<'info, VerifierRouter>,
-   
-   /// The authority initializing and paying for the router
-   #[account(mut)]
-   pub authority: Signer<'info>,
-   
-   /// Required for account initialization
-   pub system_program: Program<'info, System>,
+    pub router: Account<'info, VerifierRouter>,
+
+    /// The authority initializing and paying for the router
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    /// Required for account initialization
+    pub system_program: Program<'info, System>,
 }
 
 /// Account validation for adding a new verifier program
@@ -81,11 +81,9 @@ pub struct AddVerifier<'info> {
     /// The program executable code account of the verifier program to be added
     /// Must be an unchecked account because any program ID can be here
     /// CHECK: checks are done by constraint in program data account
-    #[account(
-        executable
-    )]
+    #[account(executable)]
     pub verifier_program: UncheckedAccount<'info>,
-    
+
     /// The owner of the router which must sign this transaction
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -98,8 +96,8 @@ pub struct AddVerifier<'info> {
 ///
 /// Validates accounts needed for proof verification and ensures the
 /// verifier program matches the registered entry of the requested selector.
-/// 
-/// Ensures a program is not attempting to use a selector which had been E-Stopped. 
+///
+/// Ensures a program is not attempting to use a selector which had been E-Stopped.
 ///
 /// # Arguments
 /// * `selector` - A u32 that uniquely identifies the verifier entry
@@ -107,14 +105,14 @@ pub struct AddVerifier<'info> {
 #[instruction(selector: u32)]
 pub struct Verify<'info> {
     /// The router account PDA managing verifiers
-   #[account(
+    #[account(
     seeds = [b"router"],
     bump
    )]
-   pub router: Account<'info, VerifierRouter>,
-   
+    pub router: Account<'info, VerifierRouter>,
+
     /// The verifier entry to use, validated using PDA derivation
-   #[account(
+    #[account(
        seeds = [
             b"verifier",
             selector.to_le_bytes().as_ref()
@@ -122,20 +120,20 @@ pub struct Verify<'info> {
        bump,
        constraint = verifier_entry.selector == selector,
    )]
-   pub verifier_entry: Account<'info, VerifierEntry>,
+    pub verifier_entry: Account<'info, VerifierEntry>,
 
-   /// The verifier program to be invoked
-   /// Must match the address of the program listed in the verifier entry of the specific selector
-   /// Must be an unchecked account because any program ID can be here
-   /// CHECK: Manually checked to be the same value of the verifier entry program
-   #[account(
+    /// The verifier program to be invoked
+    /// Must match the address of the program listed in the verifier entry of the specific selector
+    /// Must be an unchecked account because any program ID can be here
+    /// CHECK: Manually checked to be the same value of the verifier entry program
+    #[account(
         executable,
         address = verifier_entry.verifier @ RouterError::InvalidVerifier
    )]
-   pub verifier_program: UncheckedAccount<'info>,
+    pub verifier_program: UncheckedAccount<'info>,
 
-   /// CHECK: Only included to satisfy Anchor CPI Lifetime requirements
-   pub system_program: Program<'info, System>
+    /// CHECK: Only included to satisfy Anchor CPI Lifetime requirements
+    pub system_program: Program<'info, System>,
 }
 
 /// Initializes a new router with the given authority as owner
@@ -149,22 +147,22 @@ pub struct Verify<'info> {
 /// # Returns
 /// * `Ok(())` if initialization is successful
 pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-   let router = &mut ctx.accounts.router;
-   router.ownership = Ownership::new(ctx.accounts.authority.key())?;
-   router.verifier_count = 0;
-   Ok(())
+    let router = &mut ctx.accounts.router;
+    router.ownership = Ownership::new(ctx.accounts.authority.key())?;
+    router.verifier_count = 0;
+    Ok(())
 }
 
 /// Adds a new verifier to the router's registry
 ///
 /// Creates a new verifier entry and associates it with the provided selector.
 /// Only callable by the router's owner. Checks that the program being added to
-/// the router is both Upgradable (via Loader V3) and has the Upgrade authority 
+/// the router is both Upgradable (via Loader V3) and has the Upgrade authority
 /// set to the router PDA address.
 ///
 /// # Arguments
 /// * `ctx` - The AddVerifier context containing validated accounts
-/// * `selector` - The selector to associate with this verifier 
+/// * `selector` - The selector to associate with this verifier
 ///                (must be one higher then the current verifier count)
 ///
 /// # Returns
@@ -209,13 +207,13 @@ pub fn add_verifier(ctx: Context<AddVerifier>, selector: u32) -> Result<()> {
 /// * `Ok(())` if the verification is successful
 /// * `Err` if verification fails or the verifier returns an error
 pub fn verify(
-   ctx: Context<Verify>,
-   proof: Proof,
-   image_id: [u8; 32],
-   journal_digest: [u8; 32],
+    ctx: Context<Verify>,
+    proof: Proof,
+    image_id: [u8; 32],
+    journal_digest: [u8; 32],
 ) -> Result<()> {
     let verifier_program = ctx.accounts.verifier_program.to_account_info();
-    let verifier_accounts = VerifyProof { 
+    let verifier_accounts = VerifyProof {
         system_program: ctx.accounts.system_program.to_account_info(),
     };
 
