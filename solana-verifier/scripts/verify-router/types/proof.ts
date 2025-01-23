@@ -10,23 +10,27 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
-  getArrayDecoder,
-  getArrayEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  getU8Decoder,
-  getU8Encoder,
   type Codec,
   type Decoder,
   type Encoder,
   type ReadonlyUint8Array,
 } from '@solana/web3.js';
 
+/**
+ * Groth16 proof elements on BN254 curve
+ * - pi_a must be a point in G1
+ * - pi_b must be a point in G2
+ * - pi_c must be a point in G1
+ * Note: pi_a must be negated before calling verify
+ */
+
 export type Proof = {
   piA: ReadonlyUint8Array;
-  piB: Array<number>;
+  piB: ReadonlyUint8Array;
   piC: ReadonlyUint8Array;
 };
 
@@ -35,7 +39,7 @@ export type ProofArgs = Proof;
 export function getProofEncoder(): Encoder<ProofArgs> {
   return getStructEncoder([
     ['piA', fixEncoderSize(getBytesEncoder(), 64)],
-    ['piB', getArrayEncoder(getU8Encoder(), { size: 128 })],
+    ['piB', fixEncoderSize(getBytesEncoder(), 128)],
     ['piC', fixEncoderSize(getBytesEncoder(), 64)],
   ]);
 }
@@ -43,7 +47,7 @@ export function getProofEncoder(): Encoder<ProofArgs> {
 export function getProofDecoder(): Decoder<Proof> {
   return getStructDecoder([
     ['piA', fixDecoderSize(getBytesDecoder(), 64)],
-    ['piB', getArrayDecoder(getU8Decoder(), { size: 128 })],
+    ['piB', fixDecoderSize(getBytesDecoder(), 128)],
     ['piC', fixDecoderSize(getBytesDecoder(), 64)],
   ]);
 }

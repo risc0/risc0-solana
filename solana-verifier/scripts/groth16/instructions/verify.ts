@@ -10,14 +10,10 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
-  getArrayDecoder,
-  getArrayEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getStructDecoder,
   getStructEncoder,
-  getU8Decoder,
-  getU8Encoder,
   transformEncoder,
   type Address,
   type Codec,
@@ -61,7 +57,7 @@ export type VerifyInstruction<
 export type VerifyInstructionData = {
   discriminator: ReadonlyUint8Array;
   piA: ReadonlyUint8Array;
-  piB: Array<number>;
+  piB: ReadonlyUint8Array;
   piC: ReadonlyUint8Array;
   imageId: ReadonlyUint8Array;
   journalDigest: ReadonlyUint8Array;
@@ -69,7 +65,7 @@ export type VerifyInstructionData = {
 
 export type VerifyInstructionDataArgs = {
   piA: ReadonlyUint8Array;
-  piB: Array<number>;
+  piB: ReadonlyUint8Array;
   piC: ReadonlyUint8Array;
   imageId: ReadonlyUint8Array;
   journalDigest: ReadonlyUint8Array;
@@ -80,7 +76,7 @@ export function getVerifyInstructionDataEncoder(): Encoder<VerifyInstructionData
     getStructEncoder([
       ['discriminator', fixEncoderSize(getBytesEncoder(), 8)],
       ['piA', fixEncoderSize(getBytesEncoder(), 64)],
-      ['piB', getArrayEncoder(getU8Encoder(), { size: 128 })],
+      ['piB', fixEncoderSize(getBytesEncoder(), 128)],
       ['piC', fixEncoderSize(getBytesEncoder(), 64)],
       ['imageId', fixEncoderSize(getBytesEncoder(), 32)],
       ['journalDigest', fixEncoderSize(getBytesEncoder(), 32)],
@@ -93,7 +89,7 @@ export function getVerifyInstructionDataDecoder(): Decoder<VerifyInstructionData
   return getStructDecoder([
     ['discriminator', fixDecoderSize(getBytesDecoder(), 8)],
     ['piA', fixDecoderSize(getBytesDecoder(), 64)],
-    ['piB', getArrayDecoder(getU8Decoder(), { size: 128 })],
+    ['piB', fixDecoderSize(getBytesDecoder(), 128)],
     ['piC', fixDecoderSize(getBytesDecoder(), 64)],
     ['imageId', fixDecoderSize(getBytesDecoder(), 32)],
     ['journalDigest', fixDecoderSize(getBytesDecoder(), 32)],

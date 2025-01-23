@@ -230,7 +230,8 @@ export async function getAddVerifierInstructionAsync<
   }
   if (!accounts.verifierProgramData.value) {
     accounts.verifierProgramData.value = await getProgramDerivedAddress({
-      programAddress,
+      programAddress:
+        'BPFLoaderUpgradeab1e11111111111111111111111' as Address<'BPFLoaderUpgradeab1e11111111111111111111111'>,
       seeds: [
         getAddressEncoder().encode(
           expectAddress(accounts.verifierProgram.value)
