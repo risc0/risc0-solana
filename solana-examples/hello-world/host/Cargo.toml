@@ -1,0 +1,21 @@
+[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+methods = { path = "../methods" }
+risc0-zkvm = { version = "1.2.0", default-features = false, features = ["prove"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+solana-examples = { path = "../../programs/solana-examples", features = ["no-entrypoint"] }
+groth_16_verifier = { path = "../../../solana-verifier/programs/groth_16_verifier", features = ["no-entrypoint", "client"]}
+verifier_router = { path = "../../../solana-verifier/programs/verifier_router", features = ["no-entrypoint"]}
+anchor-client = { version = "0.30.1", features = ["async"]}
+tokio = { version = "1.42.0", features = ["macros"] }
+tracing = "0.1.41"
+borsh = { version = "0.10.3" }
+shared = { path = "../../shared" }
+
+# Patch zerorize, see: https://github.com/solana-labs/solana/issues/26688
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/ivs/curve25519-dalek", branch = "rustls-dep-hell" }

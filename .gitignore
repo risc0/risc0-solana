@@ -1,35 +1,13 @@
-/target/
-Cargo.lock
-**/*.rs.bk
-
-# VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# IntelliJ IDEA files
-.idea/
-*.iml
-
-# macOS
+*/test_ledger/*
+*/target/*
+.anchor
 .DS_Store
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Environments
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# bun 
-bun.lockb
-node_modules/
-
-test-ledger/
+target
+**/*.rs.bk
+node_modules
+test-ledger
+.yarn
+.idea
+*.lock
+*.pb
+package-lock.json

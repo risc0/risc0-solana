@@ -1,0 +1,7 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh = { version = "0.10.3" }

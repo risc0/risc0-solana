@@ -1,0 +1,143 @@
+{
+  "address": "AYpEZy2CYjv6pipjiokbFhaPDnxcCTUpYnURg71o9tkR",
+  "metadata": {
+    "name": "test_bad_verifier",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "verify",
+      "docs": [
+        "# WARNING: DO NOT USE IN PRODUCTION ONLY FOR USE IN TESTS",
+        "",
+        "Simple verifier that returns false for any proof except for a proof that has a null claim digest",
+        "",
+        "To produce a valid proof with this broken verifier send a proof for an empty claim digest where all proof",
+        "values are null:",
+        "- pi_a = [0; 64]",
+        "- pi_b = [0; 128]",
+        "- pi_c = [0; 64]",
+        "",
+        "All other proofs will be rejected by this verifier."
+      ],
+      "discriminator": [133, 161, 141, 48, 120, 198, 88, 150],
+      "accounts": [
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof",
+          "type": {
+            "defined": {
+              "name": "Proof"
+            }
+          }
+        },
+        {
+          "name": "image_id",
+          "type": {
+            "array": ["u8", 32]
+          }
+        },
+        {
+          "name": "journal_digest",
+          "type": {
+            "array": ["u8", 32]
+          }
+        },
+        {
+          "name": "vk",
+          "type": {
+            "defined": {
+              "name": "VerificationKey"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "VerificationError",
+      "msg": "Verification Error"
+    }
+  ],
+  "types": [
+    {
+      "name": "Proof",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pi_a",
+            "type": {
+              "array": ["u8", 64]
+            }
+          },
+          {
+            "name": "pi_b",
+            "type": {
+              "array": ["u8", 128]
+            }
+          },
+          {
+            "name": "pi_c",
+            "type": {
+              "array": ["u8", 64]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationKey",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nr_pubinputs",
+            "type": "u32"
+          },
+          {
+            "name": "vk_alpha_g1",
+            "type": {
+              "array": ["u8", 64]
+            }
+          },
+          {
+            "name": "vk_beta_g2",
+            "type": {
+              "array": ["u8", 128]
+            }
+          },
+          {
+            "name": "vk_gamma_g2",
+            "type": {
+              "array": ["u8", 128]
+            }
+          },
+          {
+            "name": "vk_delta_g2",
+            "type": {
+              "array": ["u8", 128]
+            }
+          },
+          {
+            "name": "vk_ic",
+            "type": {
+              "vec": {
+                "array": ["u8", 64]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
