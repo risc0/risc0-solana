@@ -17,11 +17,8 @@ declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
 // Base field modulus `q` for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
-pub(crate) const BASE_FIELD_MODULUS_Q: [u8; 32] = [
-    0x30, 0x64, 0x4E, 0x72, 0xE1, 0x31, 0xA0, 0x29, 0xB8, 0x50, 0x45, 0xB6, 0x81, 0x81, 0x58, 0x5D,
-    0x97, 0x81, 0x6A, 0x91, 0x68, 0x71, 0xCA, 0x8D, 0x3C, 0x20, 0x8C, 0x16, 0xD8, 0x7C, 0xFD, 0x47,
-];
-
+pub const BASE_FIELD_MODULUS_Q: [u8; 32] =
+    hex!("30644E72E131A029B85045B68181585D97816A916871CA8D3C208C16D87CFD47");
 // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
 pub const ALLOWED_CONTROL_ROOT: [u8; 32] =
     hex!("8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469");
@@ -31,20 +28,18 @@ pub const BN254_IDENTITY_CONTROL_ID: [u8; 32] =
 // SHA256 TAG_DIGEST of 'risc0.Output'
 pub const OUTPUT_TAG: [u8; 32] =
     hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4");
-// SHA256 TAG_DIGEST of 'risc0.SystemState(pc=0, merkle_root=0)'
-pub const SYSTEM_STATE_ZERO_DIGEST: [u8; 32] =
-    hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
 // SHA256 TAG_DIGEST of 'risc0.SystemState'
 pub const SYSTEM_STATE_TAG: [u8; 32] =
     hex!("206115a847207c0892e0c0547225df31d02a96eeb395670c31112dff90b421d6");
 // SHA256 TAG_DIGEST of 'risc0.ReceiptClaim'
 pub const RECEIPT_CLAIM_TAG: [u8; 32] =
     hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af");
+// SHA256 TAG_DIGEST of 'risc0.SystemState(pc=0, merkle_root=0)'
+pub const SYSTEM_STATE_ZERO_DIGEST: [u8; 32] =
+    hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
 
 #[derive(Accounts)]
-// Can't be empty when CPI is enabled see anchor #1628
 pub struct VerifyProof<'info> {
-    /// CHECK: Only included to satisfy Anchor CPI requirements
     #[account(address = system_program::ID)]
     pub system_program: AccountInfo<'info>,
 }
@@ -56,8 +51,6 @@ pub mod groth_16_verifier {
     pub fn verify(
         _ctx: Context<VerifyProof>,
         proof: Proof,
-        // TODO: Anchor really seems to struggle with constant generics in program fields
-        // Take a look at this after testing because running behind
         image_id: [u8; 32],
         journal_digest: [u8; 32],
     ) -> Result<()> {
@@ -70,12 +63,11 @@ pub fn verify_proof(proof: &Proof, image_id: &[u8; 32], journal_digest: &[u8; 32
 
     let public_inputs = public_inputs(claim_digest)?;
 
-    verify_groth_proof(proof, &public_inputs)
+    verify_groth16(proof, &public_inputs)
 }
 
 pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
-    let journal_digest = hashv(&[journal]);
-    journal_digest.to_bytes()
+    hashv(&[journal]).to_bytes()
 }
 
 /// Compute the digest of an `Output` struct:
@@ -92,13 +84,10 @@ pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
 /// ```
 /// The final 2 bytes are `0x0200`.
 fn compute_output_digest(journal_digest: &[u8; 32], assumptions_digest: &[u8; 32]) -> [u8; 32] {
-    let down_len = (2u16 << 8).to_be_bytes(); // Inline 0x0200 as big-endian bytes
-
-    let hash_out = hashv(&[&OUTPUT_TAG, journal_digest, assumptions_digest, &down_len]);
-    hash_out.to_bytes()
+    let down_len = (2u16 << 8).to_be_bytes();
+    hashv(&[&OUTPUT_TAG, journal_digest, assumptions_digest, &down_len]).to_bytes()
 }
 
-/// For the "ok" enum we have `(journalDigest, 0)`.
 fn compute_output_digest_ok(journal_digest: &[u8; 32]) -> [u8; 32] {
     compute_output_digest(journal_digest, &[0u8; 32])
 }
@@ -131,7 +120,7 @@ fn compute_receipt_claim_digest(
     let user_bytes = (user_exit_code << 24).to_be_bytes();
     let down_len = (4u16 << 8).to_be_bytes();
 
-    let hash_out = hashv(&[
+    hashv(&[
         &RECEIPT_CLAIM_TAG,
         input_digest,
         pre_state_digest,
@@ -140,25 +129,15 @@ fn compute_receipt_claim_digest(
         &system_bytes,
         &user_bytes,
         &down_len,
-    ]);
-    hash_out.to_bytes()
+    ])
+    .to_bytes()
 }
 
-/// Compute the claim digest from the image_id and journal_digest by creating a Receipt Claim digest
 pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
-    // 1) input = 0
     let input_digest = [0u8; 32];
-
-    // 2) pre = image_id
     let pre_digest = image_id;
-
-    // 3) post = zero system state
     let post_digest = SYSTEM_STATE_ZERO_DIGEST;
-
-    // 4) output = hash of `Output(journal_digest, 0)`
     let output_digest = compute_output_digest_ok(journal_digest);
-
-    // 5) exitCode = (system=0 => Halted, user=0)
     let system_exit = 0;
     let user_exit = 0;
 
@@ -175,18 +154,11 @@ pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
 pub struct Proof {
     // NOTE: `pi_a` is expected to be the **negated**
-    // version of the proof element.
-    //
-    // The pairing equation for Groth16 verification is:
-    //
-    // e(-pi_a, vk_beta_g2) * e(vk_alpha_g1, pi_b) * e(prepared_input, vk_gamma_g2) * e(pi_c, vk_delta_g2) == 1
     pub pi_a: [u8; 64],
     pub pi_b: [u8; 128],
     pub pi_c: [u8; 64],
 }
 
-// TODO: Was converted into Vec because of time constrain, Anchor really not
-// liking generic constants
 #[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
 pub struct PublicInputs<const N: usize> {
     pub inputs: [[u8; 32]; N],
@@ -207,30 +179,27 @@ pub struct PublicInputs<const N: usize> {
 ///
 /// * `Ok(())` if the proof is valid.
 /// * `Err(ProgramError)` if the proof is invalid or an error occurs.
-pub fn verify_groth_proof<const N_PUBLIC: usize>(
+pub fn verify_groth16<const N_PUBLIC: usize>(
     proof: &Proof,
     public: &PublicInputs<N_PUBLIC>,
 ) -> Result<()> {
     let vk = VERIFICATION_KEY;
-    // Check vk_ic is the correct length
+
     if vk.vk_ic.len() != N_PUBLIC + 1 {
         return err!(VerifierError::InvalidPublicInput);
     }
-    // Prepare public inputs
+
     let mut prepared = vk.vk_ic[0];
     for (i, input) in public.inputs.iter().enumerate() {
-        if !is_scalar_valid(input) {
-            return err!(VerifierError::InvalidPublicInput);
-        }
-        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &input[..]].concat())
+        let reduced = reduce_scalar_mod_q(*input);
+        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &reduced[..]].concat())
             .map_err(|_| error!(VerifierError::ArithmeticError))?;
         prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
-            .unwrap()
+            .map_err(|_| error!(VerifierError::ArithmeticError))?
             .try_into()
             .map_err(|_| error!(VerifierError::ArithmeticError))?;
     }
 
-    // Perform pairing check
     let pairing_input = [
         proof.pi_a.as_slice(),
         proof.pi_b.as_slice(),
@@ -250,7 +219,6 @@ pub fn verify_groth_proof<const N_PUBLIC: usize>(
     //   - If the pairing check passes, it returns 1 represented as a 32-byte big-endian integer (`[0u8; 31] + [1u8]`).
     //   - If the pairing check fails, it returns 0 represented as a 32-byte big-endian integer (`[0u8; 32]`).
     let pairing_res = alt_bn128_pairing(&pairing_input).map_err(|_| VerifierError::PairingError)?;
-
     let mut expected = [0u8; 32];
     expected[31] = 1;
 
@@ -262,57 +230,78 @@ pub fn verify_groth_proof<const N_PUBLIC: usize>(
 }
 
 pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>> {
+    if claim_digest == [0u8; 32] {
+        return err!(VerifierError::InvalidPublicInput);
+    }
+
     let allowed_control_root: Digest = Digest::from_bytes(ALLOWED_CONTROL_ROOT);
     let bn254_identity_control_id: Digest = Digest::from_bytes(BN254_IDENTITY_CONTROL_ID);
 
-    let (a0, a1) =
-        split_digest_bytes(allowed_control_root).map_err(|_| ProgramError::InvalidAccountData)?;
-    let (c0, c1) = split_digest_bytes(Digest::from(claim_digest))
-        .map_err(|_| ProgramError::InvalidAccountData)?;
+    let (a0, a1) = split_digest_bytes(allowed_control_root)?;
+    let (c0, c1) = split_digest_bytes(Digest::from(claim_digest))?;
 
     let mut id_bn554 = bn254_identity_control_id.as_bytes().to_vec();
     id_bn554.reverse();
     let id_bn254_fr = to_fixed_array(&id_bn554);
 
-    let inputs = [a0, a1, c0, c1, id_bn254_fr];
-
-    Ok(PublicInputs { inputs })
+    Ok(PublicInputs {
+        inputs: [a0, a1, c0, c1, id_bn254_fr],
+    })
 }
 
 fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32])> {
     let big_endian: Vec<u8> = d.as_bytes().iter().rev().copied().collect();
-    let middle = big_endian.len() / 2;
+    let len = big_endian.len();
+    let middle = len / 2;
     let (b, a) = big_endian.split_at(middle);
     Ok((to_fixed_array(a), to_fixed_array(b)))
 }
 
 fn to_fixed_array(input: &[u8]) -> [u8; 32] {
-    assert!(input.len() <= 32, "Input length must not exceed 32 bytes");
-
     let mut fixed_array = [0u8; 32];
     let start_index = 32 - input.len();
-
     fixed_array[start_index..].copy_from_slice(input);
     fixed_array
 }
 
-// TODO: Regarding the scalar check, should modular reduction be used here instead of a error handler?
-fn is_scalar_valid(scalar: &[u8; 32]) -> bool {
-    for (s_byte, q_byte) in scalar.iter().zip(BASE_FIELD_MODULUS_Q.iter()) {
-        match s_byte.cmp(q_byte) {
-            std::cmp::Ordering::Less => return true,     // scalar < q
-            std::cmp::Ordering::Greater => return false, // scalar > q
-            std::cmp::Ordering::Equal => continue,       // check next
-        }
+fn cmp_256_be(a: &[u8; 32], b: &[u8; 32]) -> std::cmp::Ordering {
+    a.iter().cmp(b.iter())
+}
+
+fn sub_256_be(a: &mut [u8; 32], b: &[u8; 32]) {
+    let mut borrow: u32 = 0;
+    for (ai, bi) in a.iter_mut().zip(b.iter()).rev() {
+        let result = (*ai as u32).wrapping_sub(*bi as u32).wrapping_sub(borrow);
+        *ai = result as u8;
+        borrow = (result >> 31) & 1;
     }
-    false // scalar == q
+}
+
+fn reduce_scalar_mod_q(mut x: [u8; 32]) -> [u8; 32] {
+    while cmp_256_be(&x, &BASE_FIELD_MODULUS_Q) != std::cmp::Ordering::Less {
+        sub_256_be(&mut x, &BASE_FIELD_MODULUS_Q);
+    }
+    x
+}
+
+pub fn negate_g1(point: &[u8; 64]) -> [u8; 64] {
+    let mut negated_point = [0u8; 64];
+    negated_point[..32].copy_from_slice(&point[..32]);
+
+    let mut y = [0u8; 32];
+    y.copy_from_slice(&point[32..]);
+
+    let mut modulus = BASE_FIELD_MODULUS_Q;
+    sub_256_be(&mut modulus, &y);
+    negated_point[32..].copy_from_slice(&modulus);
+
+    negated_point
 }
 
 #[cfg(any(feature = "client", test))]
 pub mod client {
     use super::vk::{G1_LEN, G2_LEN};
-    use super::Proof;
-    use crate::BASE_FIELD_MODULUS_Q;
+    use super::{negate_g1, Proof};
     use anchor_lang::solana_program::alt_bn128::compression::prelude::convert_endianness;
     use anyhow::{anyhow, Error, Result};
     use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
@@ -493,25 +482,6 @@ pub mod client {
         Ok(result)
     }
 
-    pub fn negate_g1(point: &[u8; 64]) -> Result<[u8; 64], ()> {
-        let x = &point[..32];
-        let y = &point[32..];
-
-        let mut y_big = BigUint::from_bytes_be(y);
-        let field_modulus = BigUint::from_bytes_be(&BASE_FIELD_MODULUS_Q);
-
-        // Negate the y-coordinate to get -g1.
-        y_big = field_modulus - y_big;
-
-        // Reconstruct the point with the negated y-coordinate
-        let mut result = [0u8; 64];
-        result[..32].copy_from_slice(x);
-        let y_bytes = y_big.to_bytes_be();
-        result[64 - y_bytes.len()..].copy_from_slice(&y_bytes);
-
-        Ok(result)
-    }
-
     pub fn receipt_to_proof(receipt: &Groth16Receipt<ReceiptClaim>) -> Result<Proof, ()> {
         let seal = &receipt.seal;
         if seal.len() < 256 {
@@ -524,7 +494,7 @@ pub mod client {
             pi_c: seal[192..256].try_into().map_err(|_| ())?,
         };
 
-        proof.pi_a = negate_g1(&proof.pi_a)?;
+        proof.pi_a = negate_g1(&proof.pi_a);
         Ok(proof)
     }
 
@@ -566,6 +536,7 @@ mod test_lib {
     use super::*;
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
+    use std::cmp::Ordering;
 
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -592,7 +563,7 @@ mod test_lib {
             pi_b: proof_raw[64..192].try_into().unwrap(),
             pi_c: proof_raw[192..256].try_into().unwrap(),
         };
-        proof.pi_a = negate_g1(&proof.pi_a).unwrap();
+        proof.pi_a = negate_g1(&proof.pi_a);
 
         (receipt, proof, public_inputs)
     }
@@ -661,42 +632,8 @@ mod test_lib {
     #[test]
     pub fn test_verify() {
         let (_, proof, public_inputs) = load_receipt_and_extract_data();
-        let res = verify_groth_proof(&proof, &public_inputs);
+        let res = verify_groth16(&proof, &public_inputs);
         assert!(res.is_ok(), "Verification failed");
-    }
-
-    #[test]
-    fn test_write_compressed_proof_to_file() {
-        let (_, proof, _) = load_receipt_and_extract_data();
-
-        let compressed_proof_a = compress_g1_be(&proof.pi_a);
-        let compressed_proof_b = compress_g2_be(&proof.pi_b);
-        let compressed_proof_c = compress_g1_be(&proof.pi_c);
-
-        let compressed_proof = [
-            compressed_proof_a.as_slice(),
-            compressed_proof_b.as_slice(),
-            compressed_proof_c.as_slice(),
-        ]
-        .concat();
-
-        write_compressed_proof_to_file("test/data/compressed_proof.bin", &compressed_proof);
-    }
-
-    #[test]
-    fn test_scalar_validity_check() {
-        let valid_scalar = [0u8; 32];
-        assert!(is_scalar_valid(&valid_scalar), "Zero should be valid");
-
-        let mut invalid_scalar = BASE_FIELD_MODULUS_Q;
-        assert!(!is_scalar_valid(&invalid_scalar), "q should be invalid");
-
-        invalid_scalar[31] += 1;
-        assert!(!is_scalar_valid(&invalid_scalar), "q+1 should be invalid");
-
-        let mut below_q = BASE_FIELD_MODULUS_Q;
-        below_q[31] -= 1;
-        assert!(is_scalar_valid(&below_q), "q-1 should be valid");
     }
 
     #[test]
@@ -740,9 +677,63 @@ mod test_lib {
             <&[u8; 32]>::try_from(receipt.journal.digest().as_bytes()).unwrap(),
         );
         assert_eq!(
-            actual_claim_digest.as_bytes(), calculated_claim_digest,
+            actual_claim_digest.as_bytes(),
+            calculated_claim_digest,
             "Claim digests do not match"
         );
     }
-    
+
+    #[test]
+    fn test_verify_invalid_proof() {
+        let (_, mut proof, public_inputs) = load_receipt_and_extract_data();
+        // Corrupt proof
+        proof.pi_a[0] ^= 1;
+        let res = verify_groth16(&proof, &public_inputs);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_verify_invalid_public_inputs() {
+        let (_, proof, mut public_inputs) = load_receipt_and_extract_data();
+        // Corrupt input
+        public_inputs.inputs[0][0] ^= 1;
+        let res = verify_groth16(&proof, &public_inputs);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_public_inputs_validation() {
+        // Test zero claim digest (this should be rejected)
+        let result = public_inputs([0u8; 32]);
+        assert!(result.is_err(), "Should reject zero input");
+
+        // Test large scalar (this should be allowed and reduced)
+        let mut large_scalar = BASE_FIELD_MODULUS_Q;
+        large_scalar[31] += 1;
+        let result = public_inputs(large_scalar);
+        assert!(result.is_ok(), "Should accept and reduce large scalar");
+    }
+
+    #[test]
+    fn test_digest_computation() {
+        let image_id = [1u8; 32];
+        let journal_digest = [2u8; 32];
+        let digest = compute_claim_digest(&image_id, &journal_digest);
+        assert_ne!(digest, [0u8; 32]); // Should generate non-zero digest
+    }
+
+    #[test]
+    fn test_scalar_reduction_mod_q() {
+        let mut input = BASE_FIELD_MODULUS_Q;
+        input[0] = 0xFF;
+        let reduced = reduce_scalar_mod_q(input);
+        assert_eq!(cmp_256_be(&reduced, &BASE_FIELD_MODULUS_Q), Ordering::Less);
+
+        let large_input = [0xFF; 32];
+        let reduced = reduce_scalar_mod_q(large_input);
+        assert_eq!(cmp_256_be(&reduced, &BASE_FIELD_MODULUS_Q), Ordering::Less);
+
+        let reduced = reduce_scalar_mod_q(BASE_FIELD_MODULUS_Q);
+        assert_eq!(reduced, [0u8; 32], "q mod q should be zero");
+    }
 }
