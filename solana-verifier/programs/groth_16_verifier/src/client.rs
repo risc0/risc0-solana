@@ -1,7 +1,8 @@
 use super::vk::{G1_LEN, G2_LEN};
-use super::Proof;
+use super::{negate_g1, Proof};
 use anyhow::{anyhow, Error, Result};
 use num_bigint::BigUint;
+use risc0_zkvm::{Groth16Receipt, ReceiptClaim};
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
@@ -170,4 +171,20 @@ pub(crate) fn convert_g2(values: &[Vec<String>]) -> Result<[u8; G2_LEN]> {
     result[G2_LEN - y_c0_bytes.len()..].copy_from_slice(&y_c0_bytes);
 
     Ok(result)
+}
+
+pub fn receipt_to_proof(receipt: &Groth16Receipt<ReceiptClaim>) -> Result<Proof, ()> {
+    let seal = &receipt.seal;
+    if seal.len() < 256 {
+        return Err(());
+    }
+
+    let mut proof = Proof {
+        pi_a: seal[0..64].try_into().map_err(|_| ())?,
+        pi_b: seal[64..192].try_into().map_err(|_| ())?,
+        pi_c: seal[192..256].try_into().map_err(|_| ())?,
+    };
+
+    proof.pi_a = negate_g1(&proof.pi_a);
+    Ok(proof)
 }

@@ -9,7 +9,7 @@ mod error;
 mod vk;
 
 #[cfg(any(feature = "client", test))]
-mod client;
+pub mod client;
 
 pub use vk::{VerificationKey, VERIFICATION_KEY};
 

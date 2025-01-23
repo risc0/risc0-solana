@@ -128,8 +128,6 @@ async fn increment_nonce(
 
     info!("Current Nonce value is {nonce}");
 
-    let prover = default_prover();
-
     let nonce_arguments = IncrementNonceArguments {
         account: user.pubkey().to_bytes(),
         nonce,
@@ -138,16 +136,17 @@ async fn increment_nonce(
     // We serialize with Borsh to get a format that is more commonly used in Solana
     let input = to_vec(&nonce_arguments).expect("Could not serialize proof nonce arguments");
 
-    let env = ExecutorEnv::builder().write_slice(&input).build().unwrap();
-
-    // Proof information by proving the specified ELF binary.
-    // This struct contains the receipt along with statistics about execution of the guest
-    let prover_options = ProverOpts::groth16();
-    let prove_info = prover
-        .prove_with_opts(env, HELLO_GUEST_ELF, &prover_options)
-        .unwrap();
-
-    let receipt = prove_info.receipt;
+    let receipt = tokio::task::spawn_blocking(move || {
+        let prover = default_prover();
+        let env = ExecutorEnv::builder().write_slice(&input).build().unwrap();
+        let prover_options = ProverOpts::groth16();
+        let prove_info = prover
+            .prove_with_opts(env, HELLO_GUEST_ELF, &prover_options)
+            .unwrap();
+        prove_info.receipt
+    })
+    .await
+    .expect("Proving task failed");
 
     let journal_digest = receipt.journal.digest();
 
