@@ -279,11 +279,6 @@ pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>> {
     Ok(PublicInputs { inputs })
 }
 
-fn digest_from_hex(hex_str: &str) -> Digest {
-    let bytes = hex::decode(hex_str).expect("Invalid hex string");
-    Digest::from_bytes(bytes.try_into().expect("Invalid digest length"))
-}
-
 fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32])> {
     let big_endian: Vec<u8> = d.as_bytes().iter().rev().copied().collect();
     let middle = big_endian.len() / 2;
@@ -571,9 +566,6 @@ mod test_lib {
     use super::*;
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
-    use std::fs::File;
-    use std::io::Write;
-    use vk::*;
 
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -603,10 +595,6 @@ mod test_lib {
         proof.pi_a = negate_g1(&proof.pi_a).unwrap();
 
         (receipt, proof, public_inputs)
-    }
-
-    fn load_verification_key() -> VerificationKey {
-        return vk::VERIFICATION_KEY;
     }
 
     #[test]
@@ -673,7 +661,6 @@ mod test_lib {
     #[test]
     pub fn test_verify() {
         let (_, proof, public_inputs) = load_receipt_and_extract_data();
-        let vk = load_verification_key();
         let res = verify_groth_proof(&proof, &public_inputs);
         assert!(res.is_ok(), "Verification failed");
     }
@@ -694,40 +681,6 @@ mod test_lib {
         .concat();
 
         write_compressed_proof_to_file("test/data/compressed_proof.bin", &compressed_proof);
-    }
-
-    #[test]
-    fn write_claim_digest_to_file() {
-        let claim_digest = get_claim_digest();
-
-        let output_path = "test/data/claim_digest.bin";
-
-        let mut file = File::create(output_path).expect("Failed to create file");
-        file.write_all(&claim_digest)
-            .expect("Failed to write claim digest to file");
-
-        println!("Raw claim digest written to {:?}", output_path);
-
-        // Verify the file was written correctly
-        let read_digest = std::fs::read(output_path).expect("Failed to read claim digest file");
-        assert_eq!(
-            claim_digest.to_vec(),
-            read_digest,
-            "Written and read claim digests do not match"
-        );
-    }
-
-    fn get_claim_digest() -> [u8; 32] {
-        let receipt_json_str = include_bytes!("../test/data/receipt.json");
-        let receipt: Receipt = serde_json::from_slice(receipt_json_str).unwrap();
-        receipt
-            .inner
-            .groth16()
-            .unwrap()
-            .claim
-            .digest()
-            .try_into()
-            .unwrap()
     }
 
     #[test]
@@ -769,7 +722,7 @@ mod test_lib {
     #[test]
     fn test_claim_digest() {
         let (receipt, _, _) = load_receipt_and_extract_data();
-        let actual_claim_digest = get_claim_digest();
+        let actual_claim_digest = receipt.claim().unwrap().digest();
 
         // image id of receipt.json
         const IMG_ID: [u32; 8] = [
@@ -787,8 +740,9 @@ mod test_lib {
             <&[u8; 32]>::try_from(receipt.journal.digest().as_bytes()).unwrap(),
         );
         assert_eq!(
-            actual_claim_digest, calculated_claim_digest,
+            actual_claim_digest.as_bytes(), calculated_claim_digest,
             "Claim digests do not match"
         );
     }
+    
 }
