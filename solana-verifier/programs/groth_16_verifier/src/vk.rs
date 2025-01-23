@@ -12,9 +12,6 @@ pub struct VerificationKey {
     pub vk_beta_g2: [u8; G2_LEN],
     pub vk_gamma_g2: [u8; G2_LEN],
     pub vk_delta_g2: [u8; G2_LEN],
-    // TODO: This was `pub vk_ic: &'a [[u8; G1_LEN]], which should be more efficient, unsure if we can use
-    // the Anchor Zero Copy data structure to deal with data lifetimes, makes sense to keep as vector until
-    // further testing
     pub vk_ic: [[u8; G1_LEN]; IC_LEN],
 }
 

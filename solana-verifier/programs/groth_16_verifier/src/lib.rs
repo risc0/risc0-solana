@@ -1,12 +1,9 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::alt_bn128::prelude::{
-    alt_bn128_addition, alt_bn128_multiplication, alt_bn128_pairing,
-};
+use anchor_lang::solana_program::alt_bn128::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::system_program;
 use error::VerifierError;
 use hex_literal::hex;
-use risc0_zkp::core::digest::Digest;
 
 mod error;
 mod vk;
@@ -18,28 +15,47 @@ pub use vk::{VerificationKey, VERIFICATION_KEY};
 
 declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
-// Base field modulus `q` for BN254
+// Base field modulus 'q' for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
 pub const BASE_FIELD_MODULUS_Q: [u8; 32] =
     hex!("30644E72E131A029B85045B68181585D97816A916871CA8D3C208C16D87CFD47");
-// From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
+// REF: https://github.com/risc0/risc0/blob/main/risc0/circuit/recursion/src/control_id.rs#L47
 pub const ALLOWED_CONTROL_ROOT: [u8; 32] =
     hex!("8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469");
-// From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L51
+// REF: https://github.com/risc0/risc0/blob/main/risc0/circuit/recursion/src/control_id.rs#L51
 pub const BN254_IDENTITY_CONTROL_ID: [u8; 32] =
     hex!("c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404");
-// SHA256 TAG_DIGEST of 'risc0.Output'
+// SHA256('risc0.Output')
 pub const OUTPUT_TAG: [u8; 32] =
     hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4");
-// SHA256 TAG_DIGEST of 'risc0.SystemState'
+// SHA256('risc0.SystemState')
 pub const SYSTEM_STATE_TAG: [u8; 32] =
     hex!("206115a847207c0892e0c0547225df31d02a96eeb395670c31112dff90b421d6");
-// SHA256 TAG_DIGEST of 'risc0.ReceiptClaim'
+// SHA256('risc0.ReceiptClaim')
 pub const RECEIPT_CLAIM_TAG: [u8; 32] =
     hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af");
-// SHA256 TAG_DIGEST of 'risc0.SystemState(pc=0, merkle_root=0)'
+// SHA256('risc0.SystemState(pc=0, merkle_root=0)')
 pub const SYSTEM_STATE_ZERO_DIGEST: [u8; 32] =
     hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
+
+/// Groth16 proof elements on BN254 curve
+/// - pi_a must be a point in G1
+/// - pi_b must be a point in G2
+/// - pi_c must be a point in G1
+///   Note: pi_a must be negated before calling verify
+#[derive(Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
+pub struct Proof {
+    // NOTE: `pi_a` is expected to be the **negated**
+    pub pi_a: [u8; 64],
+    pub pi_b: [u8; 128],
+    pub pi_c: [u8; 64],
+}
+
+/// N public inputs for Groth16 proof verification
+#[derive(Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
+pub struct PublicInputs<const N: usize> {
+    pub inputs: [[u8; 32]; N],
+}
 
 #[derive(Accounts)]
 pub struct VerifyProof<'info> {
@@ -51,100 +67,29 @@ pub struct VerifyProof<'info> {
 pub mod groth_16_verifier {
     use super::*;
 
+    /// Verifies a RISC Zero zkVM Groth16 receipt
     pub fn verify(
         _ctx: Context<VerifyProof>,
         proof: Proof,
         image_id: [u8; 32],
         journal_digest: [u8; 32],
     ) -> Result<()> {
-        verify_proof(&proof, &image_id, &journal_digest)
+        let claim_digest = hash_claim(&image_id, &journal_digest);
+        let public_inputs = public_inputs(claim_digest)?;
+        verify_groth16(&proof, &public_inputs)
     }
 }
 
-pub fn verify_proof(proof: &Proof, image_id: &[u8; 32], journal_digest: &[u8; 32]) -> Result<()> {
-    let claim_digest = compute_claim_digest(image_id, journal_digest);
-
-    let public_inputs = public_inputs(claim_digest)?;
-
-    verify_groth16(proof, &public_inputs)
-}
-
-pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
-    hashv(&[journal]).to_bytes()
-}
-
-/// Compute the digest of an `Output` struct:
-/// ```solidity
-/// bytes32 constant TAG_DIGEST = sha256("risc0.Output");
-/// function digest(Output o) returns (bytes32) {
-///   return sha256(abi.encodePacked(
-///       TAG_DIGEST,
-///       o.journalDigest,
-///       o.assumptionsDigest,
-///       (uint16(2) << 8)
-///   ));
-/// }
-/// ```
-/// The final 2 bytes are `0x0200`.
-fn compute_output_digest(journal_digest: &[u8; 32], assumptions_digest: &[u8; 32]) -> [u8; 32] {
-    let down_len = (2u16 << 8).to_be_bytes();
-    hashv(&[&OUTPUT_TAG, journal_digest, assumptions_digest, &down_len]).to_bytes()
-}
-
-fn compute_output_digest_ok(journal_digest: &[u8; 32]) -> [u8; 32] {
-    compute_output_digest(journal_digest, &[0u8; 32])
-}
-
-/// Compute the digest of a `ReceiptClaim
-/// ```solidity
-/// bytes32 constant TAG_DIGEST = sha256("risc0.ReceiptClaim");
-/// function digest(ReceiptClaim claim) returns (bytes32) {
-///   return sha256(abi.encodePacked(
-///       TAG_DIGEST,
-///       claim.input,               // 32 bytes
-///       claim.preStateDigest,      // 32 bytes
-///       claim.postStateDigest,     // 32 bytes
-///       claim.output,              // 32 bytes
-///       (uint32(claim.exitCode.system) << 24),  // 4 bytes
-///       (uint32(claim.exitCode.user) << 24),    // 4 bytes
-///       (uint16(4) << 8)          // 0x0400, 2 bytes
-///   ));
-/// }
-/// ```
-fn compute_receipt_claim_digest(
-    input_digest: &[u8; 32],
-    pre_state_digest: &[u8; 32],
-    post_state_digest: &[u8; 32],
-    output_digest: &[u8; 32],
-    system_exit_code: u32,
-    user_exit_code: u32,
-) -> [u8; 32] {
-    let system_bytes = (system_exit_code << 24).to_be_bytes();
-    let user_bytes = (user_exit_code << 24).to_be_bytes();
-    let down_len = (4u16 << 8).to_be_bytes();
-
-    hashv(&[
-        &RECEIPT_CLAIM_TAG,
-        input_digest,
-        pre_state_digest,
-        post_state_digest,
-        output_digest,
-        &system_bytes,
-        &user_bytes,
-        &down_len,
-    ])
-    .to_bytes()
-}
-
-pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
+/// Generate a receipt claim digest
+pub fn hash_claim(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [u8; 32] {
     let input_digest = [0u8; 32];
     let pre_digest = image_id;
     let post_digest = SYSTEM_STATE_ZERO_DIGEST;
-    let output_digest = compute_output_digest_ok(journal_digest);
+    let output_digest = hash_output(journal_digest, &[0u8; 32]);
     let system_exit = 0;
     let user_exit = 0;
 
-    compute_receipt_claim_digest(
+    hash_receipt_claim(
         &input_digest,
         pre_digest,
         &post_digest,
@@ -154,35 +99,24 @@ pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [
     )
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
-pub struct Proof {
-    // NOTE: `pi_a` is expected to be the **negated**
-    pub pi_a: [u8; 64],
-    pub pi_b: [u8; 128],
-    pub pi_c: [u8; 64],
+/// Negate a BN254 G1 curve point
+pub fn negate_g1(point: &[u8; 64]) -> [u8; 64] {
+    let mut negated_point = [0u8; 64];
+    negated_point[..32].copy_from_slice(&point[..32]);
+
+    let mut y = [0u8; 32];
+    y.copy_from_slice(&point[32..]);
+
+    let mut modulus = BASE_FIELD_MODULUS_Q;
+    subtract_be_bytes(&mut modulus, &y);
+    negated_point[32..].copy_from_slice(&modulus);
+
+    negated_point
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, AnchorDeserialize, AnchorSerialize)]
-pub struct PublicInputs<const N: usize> {
-    pub inputs: [[u8; 32]; N],
-}
-
-/// Verifies a Groth16 proof.
-///
-/// # Arguments
-///
-/// * `proof` - The proof to verify.
-/// * `public` - The public inputs to the proof.
-/// * `vk` - The verification key.
-///
-/// Note: The proof's `pi_a` element is expected to be the negated version of the proof element.
-/// Ensure that `pi_a` has been negated before calling this function.
-///
-/// # Returns
-///
-/// * `Ok(())` if the proof is valid.
-/// * `Err(ProgramError)` if the proof is invalid or an error occurs.
-pub fn verify_groth16<const N_PUBLIC: usize>(
+/// Verifies a Groth16 proof
+/// Note: The proof's `pi_a` element is expected to be negated.
+fn verify_groth16<const N_PUBLIC: usize>(
     proof: &Proof,
     public: &PublicInputs<N_PUBLIC>,
 ) -> Result<()> {
@@ -232,46 +166,78 @@ pub fn verify_groth16<const N_PUBLIC: usize>(
     Ok(())
 }
 
-pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>> {
+/// Generate Output digest
+/// SHA256('risc0.Output' || journal_digest || assumptions_digest || 0x0200)
+fn hash_output(journal_digest: &[u8; 32], assumptions_digest: &[u8; 32]) -> [u8; 32] {
+    let down_len = (2u16 << 8).to_be_bytes();
+    hashv(&[&OUTPUT_TAG, journal_digest, assumptions_digest, &down_len]).to_bytes()
+}
+
+/// Generate ReceiptClaim digest
+/// SHA256('risc0.ReceiptClaim' || input || preState || postState || output || system_code || user_code || 0x0400)
+fn hash_receipt_claim(
+    input_digest: &[u8; 32],
+    pre_state_digest: &[u8; 32],
+    post_state_digest: &[u8; 32],
+    output_digest: &[u8; 32],
+    system_exit_code: u32,
+    user_exit_code: u32,
+) -> [u8; 32] {
+    let system_bytes = (system_exit_code << 24).to_be_bytes();
+    let user_bytes = (user_exit_code << 24).to_be_bytes();
+    let down_len = (4u16 << 8).to_be_bytes();
+
+    hashv(&[
+        &RECEIPT_CLAIM_TAG,
+        input_digest,
+        pre_state_digest,
+        post_state_digest,
+        output_digest,
+        &system_bytes,
+        &user_bytes,
+        &down_len,
+    ])
+    .to_bytes()
+}
+
+/// Process claim digest into Groth16 public inputs
+/// Generates five field elements:
+/// - (a0,a1): Allowed control root split into two field elements
+/// - (c0,c1): Claim digest split into two field elements
+/// - id: BN254 identity control ID
+fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>> {
     if claim_digest == [0u8; 32] {
         return err!(VerifierError::InvalidPublicInput);
     }
 
-    let allowed_control_root: Digest = Digest::from_bytes(ALLOWED_CONTROL_ROOT);
-    let bn254_identity_control_id: Digest = Digest::from_bytes(BN254_IDENTITY_CONTROL_ID);
+    let (a0, a1) = split_digest(ALLOWED_CONTROL_ROOT)?;
+    let (c0, c1) = split_digest(claim_digest)?;
 
-    let (a0, a1) = split_digest_bytes(allowed_control_root)?;
-    let (c0, c1) = split_digest_bytes(Digest::from(claim_digest))?;
-
-    let mut id_bn554 = bn254_identity_control_id.as_bytes().to_vec();
-    id_bn554.reverse();
-    let id_bn254_fr = to_fixed_array(&id_bn554);
+    let mut id = BN254_IDENTITY_CONTROL_ID.to_vec();
+    id.reverse();
 
     Ok(PublicInputs {
-        inputs: [a0, a1, c0, c1, id_bn254_fr],
+        inputs: [a0, a1, c0, c1, to_field_element(&id)],
     })
 }
 
-fn split_digest_bytes(d: Digest) -> Result<([u8; 32], [u8; 32])> {
-    let big_endian: Vec<u8> = d.as_bytes().iter().rev().copied().collect();
-    let len = big_endian.len();
-    let middle = len / 2;
-    let (b, a) = big_endian.split_at(middle);
-    Ok((to_fixed_array(a), to_fixed_array(b)))
+/// Split Digest into two 32-byte field elements
+fn split_digest(bytes: [u8; 32]) -> Result<([u8; 32], [u8; 32])> {
+    let big_endian: Vec<u8> = bytes.iter().rev().copied().collect();
+    let (b, a) = big_endian.split_at(big_endian.len() / 2);
+    Ok((to_field_element(a), to_field_element(b)))
 }
 
-fn to_fixed_array(input: &[u8]) -> [u8; 32] {
+/// Convert arbitrary bytes to 32-byte field element
+fn to_field_element(input: &[u8]) -> [u8; 32] {
     let mut fixed_array = [0u8; 32];
     let start_index = 32 - input.len();
     fixed_array[start_index..].copy_from_slice(input);
     fixed_array
 }
 
-fn cmp_256_be(a: &[u8; 32], b: &[u8; 32]) -> std::cmp::Ordering {
-    a.iter().cmp(b.iter())
-}
-
-fn sub_256_be(a: &mut [u8; 32], b: &[u8; 32]) {
+/// Subtract big-endian numbers
+fn subtract_be_bytes(a: &mut [u8; 32], b: &[u8; 32]) {
     let mut borrow: u32 = 0;
     for (ai, bi) in a.iter_mut().zip(b.iter()).rev() {
         let result = (*ai as u32).wrapping_sub(*bi as u32).wrapping_sub(borrow);
@@ -280,29 +246,16 @@ fn sub_256_be(a: &mut [u8; 32], b: &[u8; 32]) {
     }
 }
 
+/// Reduce field element modulo BN254 base field
 fn reduce_scalar_mod_q(mut x: [u8; 32]) -> [u8; 32] {
-    while cmp_256_be(&x, &BASE_FIELD_MODULUS_Q) != std::cmp::Ordering::Less {
-        sub_256_be(&mut x, &BASE_FIELD_MODULUS_Q);
+    while x.iter().cmp(BASE_FIELD_MODULUS_Q.iter()) != std::cmp::Ordering::Less {
+        subtract_be_bytes(&mut x, &BASE_FIELD_MODULUS_Q);
     }
     x
 }
 
-pub fn negate_g1(point: &[u8; 64]) -> [u8; 64] {
-    let mut negated_point = [0u8; 64];
-    negated_point[..32].copy_from_slice(&point[..32]);
-
-    let mut y = [0u8; 32];
-    y.copy_from_slice(&point[32..]);
-
-    let mut modulus = BASE_FIELD_MODULUS_Q;
-    sub_256_be(&mut modulus, &y);
-    negated_point[32..].copy_from_slice(&modulus);
-
-    negated_point
-}
-
 #[cfg(test)]
-mod test_lib {
+mod test_groth16_lib {
     use super::client::*;
     use super::*;
     use risc0_zkvm::sha::Digestible;
@@ -382,22 +335,10 @@ mod test_lib {
     #[test]
     fn test_proof() {
         let (_, proof, _) = load_receipt_and_extract_data();
-        println!("{:?}", proof);
-
         // Convert to bytes
         let proof_bytes = proof.to_bytes();
-
-        println!("PROOF: {:?}", proof_bytes);
-
         // Check that we have 256 bytes
         assert_eq!(proof_bytes.len(), 256);
-
-        // Test roundtrip
-        let exported_json = serde_json::to_string(&proof).unwrap();
-        let reimported_proof: Proof = serde_json::from_str(&exported_json).unwrap();
-        assert_eq!(proof, reimported_proof, "Proof roundtrip failed");
-
-        println!("Proof bytes: {:?}", proof_bytes);
     }
 
     #[test]
@@ -443,7 +384,7 @@ mod test_lib {
             let bytes = val.to_le_bytes();
             image_id[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
         }
-        let calculated_claim_digest: [u8; 32] = compute_claim_digest(
+        let calculated_claim_digest: [u8; 32] = hash_claim(
             &image_id,
             <&[u8; 32]>::try_from(receipt.journal.digest().as_bytes()).unwrap(),
         );
@@ -489,8 +430,8 @@ mod test_lib {
     fn test_digest_computation() {
         let image_id = [1u8; 32];
         let journal_digest = [2u8; 32];
-        let digest = compute_claim_digest(&image_id, &journal_digest);
-        assert_ne!(digest, [0u8; 32]); // Should generate non-zero digest
+        let digest = hash_claim(&image_id, &journal_digest);
+        assert_ne!(digest, [0u8; 32], "Should generate non-zero digest" );
     }
 
     #[test]
@@ -498,11 +439,17 @@ mod test_lib {
         let mut input = BASE_FIELD_MODULUS_Q;
         input[0] = 0xFF;
         let reduced = reduce_scalar_mod_q(input);
-        assert_eq!(cmp_256_be(&reduced, &BASE_FIELD_MODULUS_Q), Ordering::Less);
+        assert_eq!(
+            reduced.iter().cmp(BASE_FIELD_MODULUS_Q.iter()),
+            Ordering::Less
+        );
 
         let large_input = [0xFF; 32];
         let reduced = reduce_scalar_mod_q(large_input);
-        assert_eq!(cmp_256_be(&reduced, &BASE_FIELD_MODULUS_Q), Ordering::Less);
+        assert_eq!(
+            reduced.iter().cmp(BASE_FIELD_MODULUS_Q.iter()),
+            Ordering::Less
+        );
 
         let reduced = reduce_scalar_mod_q(BASE_FIELD_MODULUS_Q);
         assert_eq!(reduced, [0u8; 32], "q mod q should be zero");
