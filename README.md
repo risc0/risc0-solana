@@ -1,8 +1,10 @@
 > [!IMPORTANT]
-> `main` is the development branch.  
-> Application developers should use the [latest release](https://github.com/risc0/risc0-solana/releases) instead.
+> `main` is the development branch. Application developers should use the [latest release](https://github.com/risc0/risc0-solana/releases) instead.
 
 # RISC Zero Solana
+
+> [!WARNING]
+> This is unaudited and not yet recommended for production use. 
 
 [RISC Zero] is a zero-knowledge verifiable general computing platform, with [Solana] integration.
 This repository contains our Solana verifier infrastructure and supporting code.
