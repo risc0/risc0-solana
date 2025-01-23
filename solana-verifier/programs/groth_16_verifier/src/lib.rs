@@ -13,7 +13,7 @@ mod client;
 
 pub use vk::{VerificationKey, VERIFICATION_KEY};
 
-declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
+declare_id!("CA4wbHHhe4bxakLB4t21uQKWSjpGYciNKJjJS26XRnmi");
 
 // Base field modulus 'q' for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -59,6 +59,7 @@ pub struct PublicInputs<const N: usize> {
 
 #[derive(Accounts)]
 pub struct VerifyProof<'info> {
+    /// CHECK: Included to satisfy Anchor CPI requirements
     #[account(address = system_program::ID)]
     pub system_program: AccountInfo<'info>,
 }

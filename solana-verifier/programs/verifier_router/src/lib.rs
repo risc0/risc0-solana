@@ -10,7 +10,7 @@ use estop::*;
 use router::*;
 use state::*;
 
-declare_id!("8U8NcScoHfKhbJCCUCM4ckmynCbhFM9Mo2xLVgrbosfh");
+declare_id!("CkiFTJ5vbyyVfMfstEV8Zo4ALPkGuVQURUFky5mBNhcL");
 
 /// Verifier Router Program for Anchor
 ///
@@ -40,7 +40,7 @@ pub mod verifier_router {
 
     pub fn verify(
         ctx: Context<Verify>,
-        selector: u32,
+        _selector: u32,
         proof: Proof,
         image_id: [u8; 32],
         journal_digest: [u8; 32],
