@@ -15,17 +15,31 @@ pub use vk::{VerificationKey, VERIFICATION_KEY};
 
 declare_id!("EsJUxZK9qexcHRXr1dVoxt2mUhVAyaoRWBaaRxH5zQJD");
 
-const ALLOWED_CONTROL_ROOT: &str =
-    "8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469";
-const BN254_IDENTITY_CONTROL_ID: &str =
-    "c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404";
-
 // Base field modulus `q` for BN254
 // https://docs.rs/ark-bn254/latest/ark_bn254/
 pub(crate) const BASE_FIELD_MODULUS_Q: [u8; 32] = [
     0x30, 0x64, 0x4E, 0x72, 0xE1, 0x31, 0xA0, 0x29, 0xB8, 0x50, 0x45, 0xB6, 0x81, 0x81, 0x58, 0x5D,
     0x97, 0x81, 0x6A, 0x91, 0x68, 0x71, 0xCA, 0x8D, 0x3C, 0x20, 0x8C, 0x16, 0xD8, 0x7C, 0xFD, 0x47,
 ];
+
+// From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
+pub const ALLOWED_CONTROL_ROOT: [u8; 32] =
+    hex!("8cdad9242664be3112aba377c5425a4df735eb1c6966472b561d2855932c0469");
+// From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L51
+pub const BN254_IDENTITY_CONTROL_ID: [u8; 32] =
+    hex!("c07a65145c3cb48b6101962ea607a4dd93c753bb26975cb47feb00d3666e4404");
+// SHA256 TAG_DIGEST of 'risc0.Output'
+pub const OUTPUT_TAG: [u8; 32] =
+    hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4");
+// SHA256 TAG_DIGEST of 'risc0.SystemState(pc=0, merkle_root=0)'
+pub const SYSTEM_STATE_ZERO_DIGEST: [u8; 32] =
+    hex!("a3acc27117418996340b84e5a90f3ef4c49d22c79e44aad822ec9c313e1eb8e2");
+// SHA256 TAG_DIGEST of 'risc0.SystemState'
+pub const SYSTEM_STATE_TAG: [u8; 32] =
+    hex!("206115a847207c0892e0c0547225df31d02a96eeb395670c31112dff90b421d6");
+// SHA256 TAG_DIGEST of 'risc0.ReceiptClaim'
+pub const RECEIPT_CLAIM_TAG: [u8; 32] =
+    hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af");
 
 #[derive(Accounts)]
 // Can't be empty when CPI is enabled see anchor #1628
@@ -54,11 +68,7 @@ pub mod groth_16_verifier {
 pub fn verify_proof(proof: &Proof, image_id: &[u8; 32], journal_digest: &[u8; 32]) -> Result<()> {
     let claim_digest = compute_claim_digest(image_id, journal_digest);
 
-    let public_inputs = public_inputs(
-        claim_digest,
-        ALLOWED_CONTROL_ROOT,
-        BN254_IDENTITY_CONTROL_ID,
-    )?;
+    let public_inputs = public_inputs(claim_digest)?;
 
     verify_groth_proof(proof, &public_inputs)
 }
@@ -66,55 +76,6 @@ pub fn verify_proof(proof: &Proof, image_id: &[u8; 32], journal_digest: &[u8; 32
 pub fn compute_journal_digest(journal: &[u8]) -> [u8; 32] {
     let journal_digest = hashv(&[journal]);
     journal_digest.to_bytes()
-}
-
-/// Helper function used to match the other helpers for byte shifting even though
-/// this just makes a big endian output
-/// If `x = 0x1234_5678`, the reversed bytes are `[0x12, 0x34, 0x56, 0x78]`.
-fn convert_be(x: u32) -> [u8; 4] {
-    x.to_be_bytes()
-}
-
-/// Convert a 16-bit integer `n` into `(n << 8)` in big-endian
-/// `(uint16(n) << 8)`. For example, `(1 << 8) = 0x0100` → `[0x01, 0x00]`.
-fn two_byte_down_be(n: u16) -> [u8; 2] {
-    (n << 8).to_be_bytes()
-}
-
-/// Convert a 32-bit integer `x` into `(x << 24)` in big-endian, matching `(uint32(x) << 24)`.
-/// if `x=1`, `(x << 24) = 0x01000000`.
-fn shift_left_24_be(x: u32) -> [u8; 4] {
-    (x << 24).to_be_bytes()
-}
-
-/// TODO: Remove this once you compute the constant hex value for zero_digest
-/// Compute the digest of a SystemState struct
-/// ```solidity
-/// bytes32 constant TAG_DIGEST = sha256("risc0.SystemState");
-/// function digest(SystemState state) returns (bytes32) {
-///   return sha256(abi.encodePacked(
-///       TAG_DIGEST,
-///       state.merkle_root,
-///       reverseByteOrderUint32(state.pc),
-///       (uint16(1) << 8)
-///   ));
-/// }
-/// ```
-/// The final 2 bytes are `0x0100`, and `pc` is reversed byte order.
-fn compute_system_state_digest(pc: u32, merkle_root: [u8; 32]) -> [u8; 32] {
-    // domain_tag = sha256("risc0.SystemState")
-    let tag: [u8; 32] = hex!("206115a847207c0892e0c0547225df31d02a96eeb395670c31112dff90b421d6");
-    let pc_bytes = convert_be(pc);
-    let down_len = two_byte_down_be(1);
-
-    let hash_out = hashv(&[&tag, &merkle_root, &pc_bytes, &down_len]);
-    hash_out.to_bytes()
-}
-
-/// TODO: THIS IS A CONSTANT, USE hex! to set its value to save compute
-/// A “zero” SystemState is `(pc=0, merkle_root=0)`
-fn compute_system_state_zero_digest() -> [u8; 32] {
-    compute_system_state_digest(0, [0u8; 32])
 }
 
 /// Compute the digest of an `Output` struct:
@@ -131,11 +92,9 @@ fn compute_system_state_zero_digest() -> [u8; 32] {
 /// ```
 /// The final 2 bytes are `0x0200`.
 fn compute_output_digest(journal_digest: &[u8; 32], assumptions_digest: &[u8; 32]) -> [u8; 32] {
-    // let tag = sha256("risc0.Output");
-    let tag: [u8; 32] = hex!("77eafeb366a78b47747de0d7bb176284085ff5564887009a5be63da32d3559d4");
-    let down_len = two_byte_down_be(2); // 0x0200 for "2 fields"
+    let down_len = (2u16 << 8).to_be_bytes(); // Inline 0x0200 as big-endian bytes
 
-    let hash_out = hashv(&[&tag, journal_digest, assumptions_digest, &down_len]);
+    let hash_out = hashv(&[&OUTPUT_TAG, journal_digest, assumptions_digest, &down_len]);
     hash_out.to_bytes()
 }
 
@@ -168,14 +127,12 @@ fn compute_receipt_claim_digest(
     system_exit_code: u32,
     user_exit_code: u32,
 ) -> [u8; 32] {
-    // let tag = domain_tag("risc0.ReceiptClaim");
-    let tag = hex!("cb1fefcd1f2d9a64975cbbbf6e161e2914434b0cbb9960b84df5d717e86b48af");
-    let system_bytes = shift_left_24_be(system_exit_code);
-    let user_bytes = shift_left_24_be(user_exit_code);
-    let down_len = two_byte_down_be(4);
+    let system_bytes = (system_exit_code << 24).to_be_bytes();
+    let user_bytes = (user_exit_code << 24).to_be_bytes();
+    let down_len = (4u16 << 8).to_be_bytes();
 
     let hash_out = hashv(&[
-        &tag,
+        &RECEIPT_CLAIM_TAG,
         input_digest,
         pre_state_digest,
         post_state_digest,
@@ -196,7 +153,7 @@ pub fn compute_claim_digest(image_id: &[u8; 32], journal_digest: &[u8; 32]) -> [
     let pre_digest = image_id;
 
     // 3) post = zero system state
-    let post_digest = compute_system_state_zero_digest();
+    let post_digest = SYSTEM_STATE_ZERO_DIGEST;
 
     // 4) output = hash of `Output(journal_digest, 0)`
     let output_digest = compute_output_digest_ok(journal_digest);
@@ -304,13 +261,9 @@ pub fn verify_groth_proof<const N_PUBLIC: usize>(
     Ok(())
 }
 
-pub fn public_inputs(
-    claim_digest: [u8; 32],
-    allowed_control_root: &str,
-    bn254_identity_control_id: &str,
-) -> Result<PublicInputs<5>> {
-    let allowed_control_root: Digest = digest_from_hex(allowed_control_root);
-    let bn254_identity_control_id: Digest = digest_from_hex(bn254_identity_control_id);
+pub fn public_inputs(claim_digest: [u8; 32]) -> Result<PublicInputs<5>> {
+    let allowed_control_root: Digest = Digest::from_bytes(ALLOWED_CONTROL_ROOT);
+    let bn254_identity_control_id: Digest = Digest::from_bytes(BN254_IDENTITY_CONTROL_ID);
 
     let (a0, a1) =
         split_digest_bytes(allowed_control_root).map_err(|_| ProgramError::InvalidAccountData)?;
@@ -622,12 +575,6 @@ mod test_lib {
     use std::io::Write;
     use vk::*;
 
-    // From: https://github.com/risc0/risc0/blob/v1.1.1/risc0/circuit/recursion/src/control_id.rs#L47
-    const ALLOWED_CONTROL_ROOT: &str =
-        "8b6dcf11d463ac455361b41fb3ed053febb817491bdea00fdb340e45013b852e";
-    const BN254_IDENTITY_CONTROL_ID: &str =
-        "4e160df1e119ac0e3d658755a9edf38c8feb307b34bc10b57f4538dbe122a005";
-
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
     const REF_BASE_FIELD_MODULUS: &str =
@@ -645,12 +592,7 @@ mod test_lib {
             .digest()
             .try_into()
             .unwrap();
-        let public_inputs = public_inputs(
-            claim_digest,
-            ALLOWED_CONTROL_ROOT,
-            BN254_IDENTITY_CONTROL_ID,
-        )
-        .unwrap();
+        let public_inputs = public_inputs(claim_digest).unwrap();
 
         let proof_raw = &receipt.inner.groth16().unwrap().seal;
         let mut proof = Proof {
@@ -821,6 +763,32 @@ mod test_lib {
         assert_eq!(
             field_modulus_q_hex, ref_base_field_modulus_hex,
             "FIELD_MODULUS_Q does not match reference REF_BASE_FIELD_MODULUS"
+        );
+    }
+
+    #[test]
+    fn test_claim_digest() {
+        let (receipt, _, _) = load_receipt_and_extract_data();
+        let actual_claim_digest = get_claim_digest();
+
+        // image id of receipt.json
+        const IMG_ID: [u32; 8] = [
+            18688597, 1673543865, 1491143371, 721664238, 865920440, 525156886, 2498763974,
+            799689043,
+        ];
+
+        let mut image_id = [0u8; 32];
+        for (i, &val) in IMG_ID.iter().enumerate() {
+            let bytes = val.to_le_bytes();
+            image_id[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
+        }
+        let calculated_claim_digest: [u8; 32] = compute_claim_digest(
+            &image_id,
+            <&[u8; 32]>::try_from(receipt.journal.digest().as_bytes()).unwrap(),
+        );
+        assert_eq!(
+            actual_claim_digest, calculated_claim_digest,
+            "Claim digests do not match"
         );
     }
 }
