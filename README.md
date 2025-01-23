@@ -21,13 +21,13 @@ Our core verifier infrastructure that allows secure on-chain verification of RIS
 
 We provide several supporting libraries to help developers integrate with the verifier:
 
-- [Groth16 Verifier][verifier]: Onchain Groth16 proof verification using Solana `alt-bn254` system calls
+- [Groth16 Verifier][verifier]: Groth16 proof verification using Solana `alt-bn254` system calls
 - [Ownable Library][ownable]: Secure two-step ownership transfer for Solana programs
 - [Example Code][examples]: Integration code demonstrating verifier usage
 
 ## Getting Started
 
-Full documentation for using RISC Zero, including guides for [writing zkVM programs][risc0-quickstart], and more can be found at [dev.risczero.com].
+Full documentation for using RISC Zero, including guides for [writing zkVM programs][risc0-quickstart], and more can be found at our [Developer Documentation].
 
 ## Quick Links
 
@@ -44,4 +44,4 @@ Full documentation for using RISC Zero, including guides for [writing zkVM progr
 [verifier]: ./solana-verifier/programs/groth_16_verifier
 [risc0-quickstart]: https://dev.risczero.com/api/zkvm/quickstart
 [bonsai-quickstart]: https://dev.risczero.com/bonsai
-[dev.risczero.com]: https://dev.risczero.com
+[Developer Documentation]: https://dev.risczero.com
