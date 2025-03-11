@@ -20,7 +20,7 @@ import {
   type Encoder,
   type Option,
   type OptionOrNullable,
-} from '@solana/web3.js';
+} from '@solana/kit';
 
 /**
  * This structure tracks both the current owner and any pending ownership transfers.

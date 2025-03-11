@@ -5,7 +5,7 @@ import {
   SolanaRpcApi,
   SolanaRpcSubscriptionsApi,
   TransactionSigner,
-} from "@solana/web3.js";
+} from "@solana/kit";
 import {
   sendTransaction,
   getRouterPda,

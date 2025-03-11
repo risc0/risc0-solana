@@ -37,7 +37,7 @@ import {
   lamports,
   ITransactionMessageWithFeePayer,
   TransactionMessageWithBlockhashLifetime,
-} from "@solana/web3.js";
+} from "@solana/kit";
 import {
   getSetAuthorityInstruction,
   SOLANA_LOADER_V3_PROGRAM_PROGRAM_ADDRESS,

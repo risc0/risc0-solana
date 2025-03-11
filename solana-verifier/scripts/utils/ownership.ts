@@ -5,7 +5,7 @@ import {
   SolanaRpcSubscriptionsApi,
   Address,
   TransactionSigner,
-} from "@solana/web3.js";
+} from "@solana/kit";
 import {
   fetchVerifierRouter,
   getAcceptOwnershipInstruction,

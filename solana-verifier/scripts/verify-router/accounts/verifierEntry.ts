@@ -35,7 +35,7 @@ import {
   type MaybeAccount,
   type MaybeEncodedAccount,
   type ReadonlyUint8Array,
-} from '@solana/web3.js';
+} from '@solana/kit';
 
 export const VERIFIER_ENTRY_DISCRIMINATOR = new Uint8Array([
   102, 247, 148, 158, 33, 153, 100, 93,

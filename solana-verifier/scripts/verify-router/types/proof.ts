@@ -18,7 +18,7 @@ import {
   type Decoder,
   type Encoder,
   type ReadonlyUint8Array,
-} from '@solana/web3.js';
+} from '@solana/kit';
 
 /**
  * Groth16 proof elements on BN254 curve

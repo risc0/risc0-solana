@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { TestProgram } from "../target/types/test_program";
-import { PublicKey, Keypair, Connection } from "@solana/web3.js";
+import { PublicKey, Keypair, Connection } from "@solana/kit";
 import { expect } from "chai";
 
 describe("Anchor Ownable Tests", () => {

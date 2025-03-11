@@ -11,7 +11,7 @@ import {
   type Address,
   type SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
   type SolanaError,
-} from '@solana/web3.js';
+} from '@solana/kit';
 import { VERIFIER_ROUTER_PROGRAM_ADDRESS } from '../programs';
 
 /** VerifierInvalidAuthority: Attempted to add a verifier contract that the router contract does not own and thus cannot delete */

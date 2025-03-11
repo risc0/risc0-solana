@@ -7,7 +7,7 @@
   "dependencies": {
     "@codama/renderers": "^1.0.4",
     "@coral-xyz/anchor": "^0.30.1",
-    "@solana/web3.js": "^2.0.0-rc.4",
+    "@solana/kit": "^2.1.0",
     "@types/node": "^22.10.2",
     "codama": "^1.1.0",
     "tslog": "^4.9.3"

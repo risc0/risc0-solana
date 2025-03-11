@@ -47,7 +47,7 @@ import {
   KeyPairSigner,
   BaseTransactionMessage,
   lamports,
-} from "@solana/web3.js";
+} from "@solana/kit";
 
 import { use as chaiUse, expect } from "chai";
 import deepEqualInAnyOrder from "deep-equal-in-any-order";

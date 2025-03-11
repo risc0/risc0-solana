@@ -1,7 +1,7 @@
 import { promisify } from "util";
 import process from "child_process";
 import { verifiable, Programs } from "./utils";
-import { address, Address } from "@solana/web3.js";
+import { address, Address } from "@solana/kit";
 const exec = promisify(process.exec);
 
 /**

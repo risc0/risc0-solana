@@ -25,7 +25,7 @@ import {
   type IInstructionWithData,
   type ReadonlyAccount,
   type ReadonlyUint8Array,
-} from '@solana/web3.js';
+} from '@solana/kit';
 import { TEST_BAD_VERIFIER_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 

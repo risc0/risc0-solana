@@ -18,7 +18,7 @@ import {
   TransactionResponse,
   TransactionStateEnum,
 } from "@fireblocks/ts-sdk";
-import { getBase16Codec, SignatureBytes } from "@solana/web3.js";
+import { getBase16Codec, SignatureBytes } from "@solana/kit";
 import { PeerType } from "fireblocks-sdk";
 
 const logger = createLogger();

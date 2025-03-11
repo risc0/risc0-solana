@@ -12,7 +12,7 @@ import {
   getBytesEncoder,
   type Address,
   type ReadonlyUint8Array,
-} from '@solana/web3.js';
+} from '@solana/kit';
 import { type ParsedVerifyInstruction } from '../instructions';
 
 export const TEST_BAD_VERIFIER_PROGRAM_ADDRESS =

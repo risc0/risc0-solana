@@ -11,7 +11,7 @@ import {
   type Address,
   type SOLANA_ERROR__INSTRUCTION_ERROR__CUSTOM,
   type SolanaError,
-} from '@solana/web3.js';
+} from '@solana/kit';
 import { TEST_BAD_VERIFIER_PROGRAM_ADDRESS } from '../programs';
 
 /** VerificationError: Verification Error */
