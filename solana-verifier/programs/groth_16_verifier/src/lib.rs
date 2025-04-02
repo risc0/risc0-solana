@@ -131,6 +131,14 @@ pub fn negate_g1(point: &[u8; 64]) -> [u8; 64] {
     negated_point
 }
 
+/// Verify that a scalar is properly reduced modulo BN254 base field
+fn verify_scalar_in_field(x: &[u8; 32]) -> Result<()> {
+    if x.iter().cmp(BASE_FIELD_MODULUS_Q.iter()) != std::cmp::Ordering::Less {
+        return err!(VerifierError::InvalidPublicInput);
+    }
+    Ok(())
+}
+
 /// Verifies a Groth16 proof
 /// Note: The proof's `pi_a` element is expected to be negated.
 fn verify_groth16<const N_PUBLIC: usize>(
@@ -145,8 +153,8 @@ fn verify_groth16<const N_PUBLIC: usize>(
 
     let mut prepared = vk.vk_ic[0];
     for (i, input) in public.inputs.iter().enumerate() {
-        let reduced = reduce_scalar_mod_q(*input);
-        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], &reduced[..]].concat())
+        verify_scalar_in_field(input)?;
+        let mul_res = alt_bn128_multiplication(&[&vk.vk_ic[i + 1][..], input].concat())
             .map_err(|_| error!(VerifierError::ArithmeticError))?;
         prepared = alt_bn128_addition(&[&mul_res[..], &prepared[..]].concat())
             .map_err(|_| error!(VerifierError::ArithmeticError))?
@@ -263,21 +271,12 @@ fn subtract_be_bytes(a: &mut [u8; 32], b: &[u8; 32]) {
     }
 }
 
-/// Reduce field element modulo BN254 base field
-fn reduce_scalar_mod_q(mut x: [u8; 32]) -> [u8; 32] {
-    while x.iter().cmp(BASE_FIELD_MODULUS_Q.iter()) != std::cmp::Ordering::Less {
-        subtract_be_bytes(&mut x, &BASE_FIELD_MODULUS_Q);
-    }
-    x
-}
-
 #[cfg(test)]
 mod test_groth16_lib {
     use super::client::*;
     use super::*;
     use risc0_zkvm::sha::Digestible;
     use risc0_zkvm::Receipt;
-    use std::cmp::Ordering;
 
     // Reference base field modulus for BN254
     // https://docs.rs/ark-bn254/latest/ark_bn254/
@@ -452,23 +451,53 @@ mod test_groth16_lib {
     }
 
     #[test]
-    fn test_scalar_reduction_mod_q() {
-        let mut input = BASE_FIELD_MODULUS_Q;
-        input[0] = 0xFF;
-        let reduced = reduce_scalar_mod_q(input);
-        assert_eq!(
-            reduced.iter().cmp(BASE_FIELD_MODULUS_Q.iter()),
-            Ordering::Less
+    fn test_verify_scalar_in_field() {
+        let zero = [0u8; 32];
+        assert!(
+            verify_scalar_in_field(&zero).is_ok(),
+            "Zero should be a valid field element"
         );
 
-        let large_input = [0xFF; 32];
-        let reduced = reduce_scalar_mod_q(large_input);
-        assert_eq!(
-            reduced.iter().cmp(BASE_FIELD_MODULUS_Q.iter()),
-            Ordering::Less
+        let one = {
+            let mut arr = [0u8; 32];
+            arr[31] = 1;
+            arr
+        };
+        assert!(
+            verify_scalar_in_field(&one).is_ok(),
+            "One should be a valid field element"
         );
 
-        let reduced = reduce_scalar_mod_q(BASE_FIELD_MODULUS_Q);
-        assert_eq!(reduced, [0u8; 32], "q mod q should be zero");
+        let max_valid = {
+            let mut arr = BASE_FIELD_MODULUS_Q;
+            // Subtract 1 from the last byte to make it less than modulus
+            arr[31] -= 1;
+            arr
+        };
+        assert!(
+            verify_scalar_in_field(&max_valid).is_ok(),
+            "Value below modulus should be valid"
+        );
+
+        assert!(
+            verify_scalar_in_field(&BASE_FIELD_MODULUS_Q).is_err(),
+            "Modulus itself should be rejected"
+        );
+
+        let modulus_plus_one = {
+            let mut arr = BASE_FIELD_MODULUS_Q;
+            arr[31] += 1; // Note: OK to overflow, just for testing
+            arr
+        };
+        assert!(
+            verify_scalar_in_field(&modulus_plus_one).is_err(),
+            "Value above modulus should be rejected"
+        );
+
+        let max_bytes = [0xFF; 32];
+        assert!(
+            verify_scalar_in_field(&max_bytes).is_err(),
+            "Maximum byte value should be rejected"
+        );
     }
 }
